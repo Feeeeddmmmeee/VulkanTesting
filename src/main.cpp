@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <limits>
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_raii.hpp>
@@ -7,8 +9,8 @@
 
 #include <iostream>
 
-constexpr uint_fast32_t WIDTH = 800;
-constexpr uint_fast32_t HEIGHT = 600;
+constexpr uint32_t WIDTH = 800;
+constexpr uint32_t HEIGHT = 600;
 
 const std::vector<char const*> validationLayers = {
     "VK_LAYER_KHRONOS_validation"
@@ -52,6 +54,10 @@ class App
 		vk::raii::Queue graphicsQueue = nullptr;
 		vk::raii::Queue presentQueue = nullptr;
 		vk::raii::SurfaceKHR surface = nullptr;
+		vk::SurfaceFormatKHR swapChainSurfaceFormat;
+		vk::Extent2D swapChainExtent;
+		vk::raii::SwapchainKHR swapchain = nullptr;
+		std::vector<vk::Image> swapChainImages;
 
 		void initVulkan()
 		{
@@ -60,6 +66,64 @@ class App
 			createSurface();
 			pickPhysicalDevice();
 			createLogicalDevice();
+			createSwapChain();
+		}
+
+		void createSwapChain()
+		{
+			auto surfCapabilities = pDevice.getSurfaceCapabilitiesKHR(*surface);
+			swapChainSurfaceFormat = chooseSwapSurfaceFormat(pDevice.getSurfaceFormatsKHR(*surface));
+			swapChainExtent = chooseSwapExtent(surfCapabilities);
+			auto minImageCount = std::max(3u, surfCapabilities.minImageCount);
+			minImageCount = ( surfCapabilities.maxImageCount > 0 && minImageCount > surfCapabilities.maxImageCount ) ? surfCapabilities.maxImageCount : minImageCount;
+
+			uint32_t imageCount = surfCapabilities.minImageCount + 1;
+			// max = 0 means unlimited
+			if (surfCapabilities.maxImageCount > 0 && imageCount > surfCapabilities.maxImageCount) {
+				imageCount = surfCapabilities.maxImageCount;
+			}
+
+			vk::SwapchainCreateInfoKHR swapChainCreateInfo{
+				.flags = vk::SwapchainCreateFlagsKHR(),
+					.surface = *surface,
+					.minImageCount = minImageCount,
+					.imageFormat = swapChainSurfaceFormat.format,
+					.imageColorSpace = swapChainSurfaceFormat.colorSpace,
+					.imageExtent = swapChainExtent,
+					.imageArrayLayers =1,
+					.imageUsage = vk::ImageUsageFlagBits::eColorAttachment,
+					.imageSharingMode = vk::SharingMode::eExclusive,
+					.preTransform = surfCapabilities.currentTransform,
+					.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque,
+					.presentMode = chooseSwapPresentMode(pDevice.getSurfacePresentModesKHR( *surface )),
+					.clipped = true,
+					.oldSwapchain = nullptr
+			};
+
+			swapchain = vk::raii::SwapchainKHR(device,swapChainCreateInfo);
+			swapChainImages = swapchain.getImages();
+		}
+
+		vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR &cap)
+		{
+			if(cap.currentExtent.width != std::numeric_limits<uint32_t>::max() && cap.currentExtent.height != std::numeric_limits<uint32_t>::max())
+				return cap.currentExtent;
+			int w, h;
+			glfwGetFramebufferSize(window,&w,&h);
+			return {
+				std::clamp<uint32_t>(w, cap.minImageExtent.width, cap.maxImageExtent.width),
+				std::clamp<uint32_t>(h, cap.minImageExtent.height, cap.maxImageExtent.height)
+			};
+		}
+
+		vk::PresentModeKHR chooseSwapPresentMode(const std::vector<vk::PresentModeKHR> &availModes)
+		{
+			for(auto &mode : availModes)
+			{
+				if(mode == vk::PresentModeKHR::eMailbox)
+					return mode;
+			}
+			return vk::PresentModeKHR::eFifo;
 		}
 
 		vk::SurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR> &availableFormats)
