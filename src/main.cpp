@@ -8,6 +8,7 @@
 #include <GLFW/glfw3.h>
 
 #include <iostream>
+#include <fstream>
 
 constexpr uint32_t WIDTH = 800;
 constexpr uint32_t HEIGHT = 600;
@@ -74,7 +75,43 @@ class App
 
 		void createPipeline()
 		{
+			auto shaderBin = readFile("shaders/slang.spv");
+			LOG("Shader size: "<<shaderBin.size()<<"B")
+			auto shaderModule = createShaderModule(shaderBin);
+			vk::PipelineShaderStageCreateInfo vertInfo{
+				.stage = vk::ShaderStageFlagBits::eVertex,
+					.module = shaderModule,
+					.pName = "vertMain"
+			};
+			vk::PipelineShaderStageCreateInfo fragInfo{
+				.stage = vk::ShaderStageFlagBits::eFragment,
+					.module = shaderModule,
+					.pName = "fragMain"
+			};
+			vk::PipelineShaderStageCreateInfo stages[] = {vertInfo, fragInfo};
+		}
 
+		[[nodiscard]] vk::raii::ShaderModule createShaderModule(const std::vector<char> &bytes) const
+		{
+			vk::ShaderModuleCreateInfo info{
+				.codeSize = bytes.size() * sizeof(char),
+					.pCode = (uint32_t*)bytes.data()
+			};
+			vk::raii::ShaderModule shaderModule{device, info};
+			return shaderModule;
+		}
+
+		static std::vector<char> readFile(const std::string &filename)
+		{
+			std::ifstream file(filename, std::ios::ate | std::ios::binary);
+			if(!file.is_open())
+				throw std::runtime_error("Failed to open file!");
+
+			std::vector<char> buffer(file.tellg()); // ate => we start at the end of file and thus we know its size
+			file.seekg(0, std::ios::beg);
+			file.read(buffer.data(), buffer.size());
+			file.close();
+			return buffer;
 		}
 
 		void createImageViews()
