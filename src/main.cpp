@@ -58,6 +58,7 @@ class App
 		vk::Extent2D swapChainExtent;
 		vk::raii::SwapchainKHR swapchain = nullptr;
 		std::vector<vk::Image> swapChainImages;
+		std::vector<vk::ImageView> swapChainImageViews;
 
 		void initVulkan()
 		{
@@ -67,6 +68,24 @@ class App
 			pickPhysicalDevice();
 			createLogicalDevice();
 			createSwapChain();
+			createImageViews();
+		}
+
+		void createImageViews()
+		{
+			swapChainImageViews.clear();
+
+			vk::ImageViewCreateInfo imViewInfo{
+				.viewType = vk::ImageViewType::e2D,
+					.format = swapChainSurfaceFormat.format,
+					.subresourceRange = {vk::ImageAspectFlagBits::eColor, 0,1,0,1}
+			};
+
+			for(auto image : swapChainImages)
+			{
+				imViewInfo.image = image;
+				swapChainImageViews.emplace_back(vk::raii::ImageView(device, imViewInfo));
+			}
 		}
 
 		void createSwapChain()
