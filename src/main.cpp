@@ -69,6 +69,12 @@ class App
 			createLogicalDevice();
 			createSwapChain();
 			createImageViews();
+			createPipeline();
+		}
+
+		void createPipeline()
+		{
+
 		}
 
 		void createImageViews()

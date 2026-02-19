@@ -1,5 +1,8 @@
 #!/bin/bash
-
+ 
+echo "Compiling shaders..."
+./compile_shaders
+echo "Done!"
 cmake -B build || exit 1 
 make -C build/ || exit 1
 
