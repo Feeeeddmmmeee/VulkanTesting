@@ -89,6 +89,8 @@ class App
 					.pName = "fragMain"
 			};
 			vk::PipelineShaderStageCreateInfo stages[] = {vertInfo, fragInfo};
+			vk::PipelineVertexInputStateCreateInfo vertInputInfo;
+			vk::PipelineInputAssemblyStateCreateInfo inputAssembly{.topology=vk::PrimitiveTopology::eTriangleList};
 		}
 
 		[[nodiscard]] vk::raii::ShaderModule createShaderModule(const std::vector<char> &bytes) const
