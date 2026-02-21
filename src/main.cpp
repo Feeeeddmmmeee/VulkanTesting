@@ -263,8 +263,9 @@ class App
 			};
 
 			// Create a chain of feature structures
-			vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan13Features, vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT> featureChain = {
+			vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features, vk::PhysicalDeviceVulkan13Features, vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT> featureChain = {
 				{},
+				{.shaderDrawParameters=true},
 				{.dynamicRendering = true },
 				{.extendedDynamicState = true }
 			};
