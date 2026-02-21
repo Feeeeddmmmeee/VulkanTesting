@@ -1,5 +1,8 @@
 #!/bin/bash
 
+WINDOW_BACKEND=${1:-"SDL"}
+WINDOW_BACKEND=${WINDOW_BACKEND^^}
+
 fatal()
 {
 	echo "$1"
@@ -9,7 +12,8 @@ fatal()
 echo "Compiling shaders..."
 ./compile_shaders || fatal "Shader compilation failed!"
 echo "Done!"
-cmake -B build || fatal "CMake error!"
+
+cmake -DWINDOW_BACKEND="$WINDOW_BACKEND" -B build || fatal "CMake error!"
 make -C build/ || fatal "Make error!"
 
 ./build/VulkanTesting

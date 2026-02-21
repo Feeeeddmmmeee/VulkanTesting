@@ -5,8 +5,6 @@
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
-#define SDL
-
 #ifdef GLFW
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -661,13 +659,13 @@ class App
 
 		std::vector<const char*> getRequiredExtensions()
 		{
-#ifdef GLFW
 			uint32_t extCount = 0;
-			auto ext = glfwGetRequiredInstanceExtensions(&extCount);
+			const char * const*ext;
+#ifdef GLFW
+			ext = glfwGetRequiredInstanceExtensions(&extCount);
 #endif
 #ifdef SDL
-			uint32_t extCount = 0;
-			auto ext = SDL_Vulkan_GetInstanceExtensions(&extCount);
+			ext = SDL_Vulkan_GetInstanceExtensions(&extCount);
 #endif
 			std::vector extensions(ext, ext + extCount);
 			if (_ENABLE_VALIDATION_LAYERS) {
