@@ -60,10 +60,13 @@ class App
 		vk::Extent2D swapChainExtent;
 		vk::raii::SwapchainKHR swapchain = nullptr;
 		std::vector<vk::Image> swapChainImages;
-		std::vector<vk::ImageView> swapChainImageViews;
+		std::vector<vk::raii::ImageView> swapChainImageViews;
 		vk::raii::Pipeline graphicsPipeline = nullptr;
 		vk::raii::CommandPool commandPool = nullptr;
 		vk::raii::CommandBuffer cmdBuffer = nullptr;
+		vk::raii::Semaphore presentCompleteS = nullptr;
+		vk::raii::Semaphore renderFinishedS = nullptr;
+		vk::raii::Fence drawF = nullptr;
 
 		void initVulkan()
 		{
@@ -77,6 +80,54 @@ class App
 			createPipeline();
 			createCommandPool();
 			createCommandBuffer();
+			createSyncObjects();
+		}
+
+		void drawFrame()
+		{
+			// wait for previous frame to finish
+			// get image from the swapchain
+			// record a command buffer
+			// submit command buffer
+			// present image
+			
+			// true => wait for all, uint64max = timeout
+			auto fenceRes = device.waitForFences(*drawF, vk::True, UINT64_MAX);
+			graphicsQueue.waitIdle();
+
+			auto [res, imageIndex] = swapchain.acquireNextImage(UINT64_MAX, *presentCompleteS, nullptr);
+			recordCommandBuffer(imageIndex);
+			
+			device.resetFences(*drawF);
+			vk::PipelineStageFlags waitDestStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
+			const vk::SubmitInfo submitInfo{
+				.waitSemaphoreCount = 1,
+					.pWaitSemaphores = &*presentCompleteS,
+					.pWaitDstStageMask = &waitDestStageMask, // which stage to wait for the semaphore in
+					.commandBufferCount=1,
+					.pCommandBuffers=&*cmdBuffer,
+					.signalSemaphoreCount=1,
+					.pSignalSemaphores=&*renderFinishedS
+			};
+
+			graphicsQueue.submit(submitInfo, *drawF);
+
+			const vk::PresentInfoKHR presentInfo{
+				.waitSemaphoreCount=1,
+					.pWaitSemaphores=&*renderFinishedS,
+					.swapchainCount=1,
+					.pSwapchains=&*swapchain,
+					.pImageIndices=&imageIndex
+			};
+
+			auto result = presentQueue.presentKHR(presentInfo);
+		}
+
+		void createSyncObjects()
+		{
+			presentCompleteS= vk::raii::Semaphore(device, vk::SemaphoreCreateInfo());
+			renderFinishedS= vk::raii::Semaphore(device, vk::SemaphoreCreateInfo());
+			drawF= vk::raii::Fence(device, {.flags = vk::FenceCreateFlagBits::eSignaled});
 		}
 
 		void transitionImageLayout(
@@ -129,7 +180,7 @@ class App
 					vk::PipelineStageFlagBits2::eColorAttachmentOutput          // dstStage
 			);
 
-			vk::ClearValue clearColor = vk::ClearColorValue(0.2f, 0.2f, 0.2f, 1.0f);
+			vk::ClearValue clearColor = vk::ClearColorValue(0.01f, 0.01f, 0.01f, 1.0f);
 			vk::RenderingAttachmentInfo attachmentInfo = {
 				.imageView = swapChainImageViews[imageIndex],
 				.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
@@ -146,7 +197,7 @@ class App
 			};
 
 			cmdBuffer.beginRendering(renderInfo);
-			cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics,graphicsPipeline);
+			cmdBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics,*graphicsPipeline);
 			
 			// viewport + scissor are dynamic so we specify them now
 			cmdBuffer.setViewport(0, vk::Viewport(0,0,swapChainExtent.width, swapChainExtent.height, 0, 1));
@@ -295,7 +346,7 @@ class App
 			for(auto image : swapChainImages)
 			{
 				imViewInfo.image = image;
-				swapChainImageViews.emplace_back(vk::raii::ImageView(device, imViewInfo));
+				swapChainImageViews.emplace_back(device, imViewInfo);
 			}
 		}
 
@@ -433,7 +484,7 @@ class App
 			vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features, vk::PhysicalDeviceVulkan13Features, vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT> featureChain = {
 				{},
 				{.shaderDrawParameters=true},
-				{.dynamicRendering = true },
+				{.synchronization2=true, .dynamicRendering = true },
 				{.extendedDynamicState = true }
 			};
 
@@ -597,7 +648,9 @@ class App
 			while(!glfwWindowShouldClose(window))
 			{
 				glfwPollEvents();
+				drawFrame();
 			}
+			device.waitIdle();
 		}
 
 		void initWindow()
