@@ -1,11 +1,21 @@
+#include <SDL3/SDL_init.h>
 #include <algorithm>
 #include <limits>
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
+#define SDL
+
+#ifdef GLFW
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+#endif
+
+#ifdef SDL
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_vulkan.h>
+#endif
 
 #include <iostream>
 #include <fstream>
@@ -45,22 +55,29 @@ class App
 		}
 
 	private:
+#ifdef GLFW
 		GLFWwindow *window;
+#endif
+#ifdef SDL
+		SDL_Window *window;
+#endif
 		vk::raii::Context context;
 		vk::raii::Instance instance = nullptr;
 		vk::raii::DebugUtilsMessengerEXT debugMessenger = nullptr;
+		vk::raii::SurfaceKHR surface = nullptr;
 		vk::raii::PhysicalDevice pDevice = nullptr;
 		vk::raii::Device device = nullptr;
 		vk::PhysicalDeviceFeatures devFeatures;
 		uint32_t graphicsQueueIndex = 0;
 		vk::raii::Queue graphicsQueue = nullptr;
 		vk::raii::Queue presentQueue = nullptr;
-		vk::raii::SurfaceKHR surface = nullptr;
-		vk::SurfaceFormatKHR swapChainSurfaceFormat;
-		vk::Extent2D swapChainExtent;
+
 		vk::raii::SwapchainKHR swapchain = nullptr;
 		std::vector<vk::Image> swapChainImages;
+		vk::SurfaceFormatKHR swapChainSurfaceFormat;
+		vk::Extent2D swapChainExtent;
 		std::vector<vk::raii::ImageView> swapChainImageViews;
+
 		vk::raii::Pipeline graphicsPipeline = nullptr;
 		vk::raii::CommandPool commandPool = nullptr;
 		vk::raii::CommandBuffer cmdBuffer = nullptr;
@@ -180,7 +197,7 @@ class App
 					vk::PipelineStageFlagBits2::eColorAttachmentOutput          // dstStage
 			);
 
-			vk::ClearValue clearColor = vk::ClearColorValue(0.01f, 0.01f, 0.01f, 1.0f);
+			vk::ClearValue clearColor = vk::ClearColorValue(0.005f, 0.005f, 0.005f, 1.0f);
 			vk::RenderingAttachmentInfo attachmentInfo = {
 				.imageView = swapChainImageViews[imageIndex],
 				.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
@@ -390,7 +407,13 @@ class App
 			if(cap.currentExtent.width != std::numeric_limits<uint32_t>::max() && cap.currentExtent.height != std::numeric_limits<uint32_t>::max())
 				return cap.currentExtent;
 			int w, h;
+#ifdef GLFW
 			glfwGetFramebufferSize(window,&w,&h);
+#endif
+#ifdef SDL
+			SDL_GetWindowSizeInPixels(window, &w, &h);
+#endif
+			
 			return {
 				std::clamp<uint32_t>(w, cap.minImageExtent.width, cap.maxImageExtent.width),
 				std::clamp<uint32_t>(h, cap.minImageExtent.height, cap.maxImageExtent.height)
@@ -420,8 +443,14 @@ class App
 		void createSurface()
 		{
 			VkSurfaceKHR _surface;
+#ifdef GLFW
 			if(glfwCreateWindowSurface(*instance, window,nullptr,&_surface)!=0)
 				throw std::runtime_error("Failed to create window surface!");
+#endif
+#ifdef SDL
+			if(SDL_Vulkan_CreateSurface(window, *instance, nullptr, &_surface)==0)
+				throw std::runtime_error("Failed to create window surface");
+#endif
 			surface = vk::raii::SurfaceKHR(instance, _surface);
 		}
 
@@ -632,10 +661,15 @@ class App
 
 		std::vector<const char*> getRequiredExtensions()
 		{
-			uint32_t glfwExtensionCount = 0;
-			auto glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-			std::vector extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+#ifdef GLFW
+			uint32_t extCount = 0;
+			auto ext = glfwGetRequiredInstanceExtensions(&extCount);
+#endif
+#ifdef SDL
+			uint32_t extCount = 0;
+			auto ext = SDL_Vulkan_GetInstanceExtensions(&extCount);
+#endif
+			std::vector extensions(ext, ext + extCount);
 			if (_ENABLE_VALIDATION_LAYERS) {
 				extensions.push_back(vk::EXTDebugUtilsExtensionName );
 			}
@@ -643,18 +677,46 @@ class App
 			return extensions;
 		}
 
+#ifdef SDL
+		bool running = 1;
+		void handleEvents()
+		{
+			SDL_Event event;
+			while(SDL_PollEvent(&event))
+			{
+				switch(event.type)
+				{
+					case SDL_EVENT_QUIT:
+						running = 0;
+						break;
+				}
+			}
+		}
+#endif
+
 		void mainLoop()
 		{
+#ifdef GLFW
 			while(!glfwWindowShouldClose(window))
 			{
 				glfwPollEvents();
 				drawFrame();
 			}
+#endif
+#ifdef SDL
+			while(running)
+			{
+				handleEvents();
+				drawFrame();
+			}
+#endif
 			device.waitIdle();
+
 		}
 
 		void initWindow()
 		{
+#ifdef GLFW
 			glfwInit();
 			// Disable OpenGL
 			glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -662,12 +724,26 @@ class App
 			glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
 			window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan Testing", nullptr, nullptr);
+#endif
+#ifdef SDL
+			SDL_Init(SDL_INIT_VIDEO);
+			SDL_Vulkan_LoadLibrary(NULL);
+			
+			window = SDL_CreateWindow("Vulkan Testing", WIDTH, HEIGHT, SDL_WINDOW_VULKAN);
+#endif
+
 		}
 
 		void cleanup()
 		{
+#ifdef GLFW
 			glfwDestroyWindow(window);
 			glfwTerminate();
+#endif
+#ifdef SDL
+			SDL_DestroyWindow(window);
+			SDL_Quit();
+#endif
 		}
 };
 
