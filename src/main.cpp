@@ -736,22 +736,33 @@ class App
 		{
 #ifdef GLFW
 			glfwDestroyWindow(window);
-			glfwTerminate();
 #endif
 #ifdef SDL
 			SDL_DestroyWindow(window);
-			SDL_Quit();
 #endif
 		}
 };
 
 int main()
 {
-	App app;
+	
+	auto app = new App();
 	try {
-		app.run();
+		app->run();
 	} catch (const std::exception &e) {
 		std::cout<<e.what()<<std::endl;
 		return 1;
 	}
+
+	delete app;
+	
+	// These functions cause a segmentation fault if called before vulkan 
+	// 		objects are destroyed
+#ifdef GLFW
+	glfwTerminate();
+#endif
+#ifdef SDL
+	SDL_QuitSubSystem(SDL_INIT_VIDEO);
+	SDL_Quit();
+#endif
 }
