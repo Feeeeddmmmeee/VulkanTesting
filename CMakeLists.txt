@@ -12,9 +12,8 @@ add_executable(${PROJECT_NAME} ${SRC_FILES})
 
 find_package(slang CONFIG HINTS "$ENV{VULKAN_SDK}/lib/make")
 find_package (Vulkan REQUIRED)
-find_package(glm REQUIRED)
 
-target_link_libraries (${PROJECT_NAME} PRIVATE Vulkan::Vulkan glm::glm)
+target_link_libraries (${PROJECT_NAME} PRIVATE Vulkan::Vulkan)
 
 set(WINDOW_BACKEND "SDL" CACHE STRING "Choose the window creation library (SDL/GLFW)")
 
