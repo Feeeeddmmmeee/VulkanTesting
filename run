@@ -1,19 +1,24 @@
-#!/bin/bash
-
-WINDOW_BACKEND=${1:-"SDL"}
-WINDOW_BACKEND=${WINDOW_BACKEND^^}
+#!/usr/bin/env bash
 
 fatal()
 {
 	echo "$1"
 	exit 1
 }
- 
+
+BACKEND_FLAGS=""
+
+if [ "$#" -gt 0 ]; then
+	WINDOW_BACKEND="$1"
+	WINDOW_BACKEND=${WINDOW_BACKEND^^}
+	BACKEND_FLAGS="-DWINDOW_BACKEND=$WINDOW_BACKEND"
+fi
+
 echo "Compiling shaders..."
 ./compile_shaders || fatal "Shader compilation failed!"
 echo "Done!"
 
-cmake -DWINDOW_BACKEND="$WINDOW_BACKEND" -B build || fatal "CMake error!"
+cmake "$BACKEND_FLAGS" -B build || fatal "CMake error!"
 make -C build/ || fatal "Make error!"
 
 ./build/VulkanTesting
