@@ -6,19 +6,19 @@ fatal()
 	exit 1
 }
 
-BACKEND_FLAGS=""
+CMAKE_FLAGS="-B build"
 
 if [ "$#" -gt 0 ]; then
 	WINDOW_BACKEND="$1"
 	WINDOW_BACKEND=${WINDOW_BACKEND^^}
-	BACKEND_FLAGS="-DWINDOW_BACKEND=$WINDOW_BACKEND"
+	CMAKE_FLAGS=("$CMAKE_FLAGS" "-DWINDOW_BACKEND=$WINDOW_BACKEND")
 fi
 
 echo "Compiling shaders..."
 ./compile_shaders || fatal "Shader compilation failed!"
 echo "Done!"
 
-cmake "$BACKEND_FLAGS" -B build || fatal "CMake error!"
+cmake "${CMAKE_FLAGS[@]}" || fatal "CMake error!"
 make -C build/ || fatal "Make error!"
 
 ./build/VulkanTesting
