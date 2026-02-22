@@ -3,14 +3,11 @@
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
+#include "Window.h"
+
 #ifdef GLFW
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-#endif
-
-#ifdef SDL
-#include <SDL3/SDL.h>
-#include <SDL3/SDL_vulkan.h>
 #endif
 
 #include <glm/glm.hpp>
@@ -93,12 +90,8 @@ class App
 		}
 
 	private:
-#ifdef GLFW
-		GLFWwindow *window;
-#endif
-#ifdef SDL
-		SDL_Window *window;
-#endif
+		Window *window;
+
 		vk::raii::Context context;
 		vk::raii::Instance instance = nullptr;
 		vk::raii::DebugUtilsMessengerEXT debugMessenger = nullptr;
@@ -197,14 +190,12 @@ class App
 				glfwWaitEvents();
 			}
 #endif
-#ifdef SDL
-			SDL_GetWindowSizeInPixels(window, &w, &h);
-			while(w==0||h==0)
+			auto win = window->getSpec();
+			while(win.height==0||win.width==0)
 			{
-				SDL_GetWindowSizeInPixels(window, &w, &h);
-				handleEvents();
+				win = window->getSpec();
+				window->pollEvents();
 			}
-#endif
 
 			device.waitIdle();
 
@@ -565,9 +556,8 @@ class App
 #ifdef GLFW
 			glfwGetFramebufferSize(window,&w,&h);
 #endif
-#ifdef SDL
-			SDL_GetWindowSizeInPixels(window, &w, &h);
-#endif
+			auto win = window->getSpec();
+			w = win.width; h = win.height;
 			
 			return {
 				std::clamp<uint32_t>(w, cap.minImageExtent.width, cap.maxImageExtent.width),
@@ -602,10 +592,9 @@ class App
 			if(glfwCreateWindowSurface(*instance, window,nullptr,&_surface)!=0)
 				throw std::runtime_error("Failed to create window surface!");
 #endif
-#ifdef SDL
-			if(SDL_Vulkan_CreateSurface(window, *instance, nullptr, &_surface)==0)
+			if(window->createSurface(*instance, &_surface))
 				throw std::runtime_error("Failed to create window surface");
-#endif
+
 			surface = vk::raii::SurfaceKHR(instance, _surface);
 		}
 
@@ -821,9 +810,8 @@ class App
 #ifdef GLFW
 			ext = glfwGetRequiredInstanceExtensions(&extCount);
 #endif
-#ifdef SDL
-			ext = SDL_Vulkan_GetInstanceExtensions(&extCount);
-#endif
+			ext = Window::getInstanceExtensions(&extCount);
+
 			std::vector extensions(ext, ext + extCount);
 			if (_ENABLE_VALIDATION_LAYERS) {
 				extensions.push_back(vk::EXTDebugUtilsExtensionName );
@@ -831,26 +819,6 @@ class App
 
 			return extensions;
 		}
-
-#ifdef SDL
-		bool running = 1;
-		void handleEvents()
-		{
-			SDL_Event event;
-			while(SDL_PollEvent(&event))
-			{
-				switch(event.type)
-				{
-					case SDL_EVENT_QUIT:
-						running = 0;
-						break;
-					case SDL_EVENT_WINDOW_RESIZED:
-						frameBufferResized = true;
-						break;
-				}
-			}
-		}
-#endif
 
 		void mainLoop()
 		{
@@ -861,13 +829,11 @@ class App
 				drawFrame();
 			}
 #endif
-#ifdef SDL
-			while(running)
+			while(window->isRunning())
 			{
-				handleEvents();
+				window->pollEvents();
 				drawFrame();
 			}
-#endif
 			device.waitIdle();
 
 		}
@@ -888,12 +854,12 @@ class App
 					reinterpret_cast<App*>(glfwGetWindowUserPointer(win))->frameBufferResized = true;
 			});
 #endif
-#ifdef SDL
-			SDL_Init(SDL_INIT_VIDEO);
-			SDL_Vulkan_LoadLibrary(NULL);
-			
-			window = SDL_CreateWindow("Vulkan Testing", WIDTH, HEIGHT, SDL_WINDOW_VULKAN|SDL_WINDOW_RESIZABLE);
-#endif
+			window = Window::create({
+				.name="Vulkan Testing",
+				.width=WIDTH,
+				.height=HEIGHT,
+				.frameBufferResizeCallback=&frameBufferResized}
+			);
 
 		}
 
@@ -906,11 +872,7 @@ class App
 			glfwDestroyWindow(window);
 			glfwTerminate();
 #endif
-#ifdef SDL
-			SDL_DestroyWindow(window);
-			SDL_QuitSubSystem(SDL_INIT_VIDEO);
-			SDL_Quit();
-#endif
+			delete window;
 		}
 };
 
