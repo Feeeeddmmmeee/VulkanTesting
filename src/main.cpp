@@ -1,6 +1,4 @@
-#include <SDL3/SDL_init.h>
-#include <algorithm>
-#include <limits>
+#include <cstdint>
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_raii.hpp>
@@ -15,20 +13,13 @@
 #include <SDL3/SDL_vulkan.h>
 #endif
 
+#include <glm/glm.hpp>
+
 #include <iostream>
 #include <fstream>
-
-constexpr uint32_t WIDTH = 800;
-constexpr uint32_t HEIGHT = 600;
-constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
-
-const std::vector<char const*> validationLayers = {
-    "VK_LAYER_KHRONOS_validation"
-};
-
-const std::vector<const char*> deviceExtensions = {
-    vk::KHRSwapchainExtensionName
-};
+#include <algorithm>
+#include <limits>
+#include <array>
 
 #define LOG(x) std::cout<<x<<std::endl;
 
@@ -37,6 +28,46 @@ constexpr bool _ENABLE_VALIDATION_LAYERS = true;
 #else
 constexpr bool _ENABLE_VALIDATION_LAYERS = false;
 #endif
+
+constexpr uint32_t WIDTH = 800;
+constexpr uint32_t HEIGHT = 600;
+constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
+constexpr const char* SHADER_PATH = "shaders/vertexBuffer.spv";
+
+struct Vertex
+{
+	glm::vec2 pos;
+	glm::vec3 color;
+
+	static vk::VertexInputBindingDescription getBindingDesc()
+	{
+		return {0, sizeof(Vertex), vk::VertexInputRate::eVertex};
+	}
+	 static std::array<vk::VertexInputAttributeDescription, 2> getAttributeDescs()
+	 {
+		 return {
+			vk::VertexInputAttributeDescription(0, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, pos)),
+			vk::VertexInputAttributeDescription(1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color))
+		 };
+	 }
+};
+
+// Triangle with colored vertices
+const std::vector<Vertex> triangleRainbow = {
+	{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+	{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+	{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+};
+
+auto vertices = triangleRainbow;
+
+const std::vector<char const*> validationLayers = {
+    "VK_LAYER_KHRONOS_validation"
+};
+
+const std::vector<const char*> deviceExtensions = {
+    vk::KHRSwapchainExtensionName
+};
 
 class App
 {
@@ -77,6 +108,9 @@ class App
 		vk::Extent2D swapChainExtent;
 		std::vector<vk::raii::ImageView> swapChainImageViews;
 
+		vk::raii::Buffer vertexBuffer = nullptr;
+		vk::raii::DeviceMemory vBufferMemory = nullptr;
+
 		vk::raii::Pipeline graphicsPipeline = nullptr;
 		vk::raii::CommandPool commandPool = nullptr;
 		std::vector<vk::raii::CommandBuffer> cmdBuffers;
@@ -98,8 +132,44 @@ class App
 			createImageViews();
 			createPipeline();
 			createCommandPool();
+			createVertexBuffer();
 			createCommandBuffers();
 			createSyncObjects();
+		}
+
+		uint32_t findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags propFlags)
+		{
+			vk::PhysicalDeviceMemoryProperties memProperties = pDevice.getMemoryProperties();
+			for (int i = 0; i < memProperties.memoryTypeCount; ++i) {
+				if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & propFlags) == propFlags) {
+					return i;
+				}
+			}
+
+			throw std::runtime_error("failed to find suitable memory type!");
+		}
+
+		void createVertexBuffer()
+		{
+			vk::BufferCreateInfo bufferInfo{
+				.size = sizeof(vertices[0]) * vertices.size(),
+				.usage = vk::BufferUsageFlagBits::eVertexBuffer,
+				.sharingMode = vk::SharingMode::eExclusive
+			};
+
+			vertexBuffer = vk::raii::Buffer(device, bufferInfo);
+			vk::MemoryRequirements memReq= vertexBuffer.getMemoryRequirements();
+
+			vk::MemoryAllocateInfo memInfo{
+				.allocationSize = memReq.size,
+					.memoryTypeIndex = findMemoryType(memReq.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent)
+			};
+			vBufferMemory = vk::raii::DeviceMemory(device, memInfo);
+			vertexBuffer.bindMemory(*vBufferMemory, 0);
+
+			void *data = vBufferMemory.mapMemory(0, bufferInfo.size);
+			memcpy(data, vertices.data(), bufferInfo.size);
+			vBufferMemory.unmapMemory();
 		}
 
 		void cleanupSwapchain()
@@ -286,6 +356,8 @@ class App
 			cmdBuffers[frameIndex].setViewport(0, vk::Viewport(0,0,swapChainExtent.width, swapChainExtent.height, 0, 1));
 			cmdBuffers[frameIndex].setScissor(0, vk::Rect2D(vk::Offset2D(0,0), swapChainExtent));
 
+			cmdBuffers[frameIndex].bindVertexBuffers(0, *vertexBuffer, {0});
+
 			cmdBuffers[frameIndex].draw(3, 1, 0, 0);
 
 			cmdBuffers[frameIndex].endRendering();
@@ -322,7 +394,7 @@ class App
 
 		void createPipeline()
 		{
-			auto shaderBin = readFile("shaders/slang.spv");
+			auto shaderBin = readFile(SHADER_PATH);
 			LOG("Shader size: "<<shaderBin.size()<<"B")
 			auto shaderModule = createShaderModule(shaderBin);
 			vk::PipelineShaderStageCreateInfo vertInfo{
@@ -337,7 +409,15 @@ class App
 			};
 			vk::PipelineShaderStageCreateInfo shaderStages[] = {vertInfo, fragInfo};
 
-			vk::PipelineVertexInputStateCreateInfo vertInputInfo;
+			auto bindingDescription = Vertex::getBindingDesc();
+			auto attrDescriptions = Vertex::getAttributeDescs();
+			vk::PipelineVertexInputStateCreateInfo vertInputInfo{
+				.vertexBindingDescriptionCount=1,
+					.pVertexBindingDescriptions=&bindingDescription,
+					.vertexAttributeDescriptionCount=attrDescriptions.size(),
+					.pVertexAttributeDescriptions=attrDescriptions.data()
+			};
+
 			vk::PipelineInputAssemblyStateCreateInfo inputAssembly{.topology=vk::PrimitiveTopology::eTriangleList};
 			vk::PipelineViewportStateCreateInfo viewportState{.viewportCount = 1, .scissorCount = 1};
 			std::vector dynamicStates = {
