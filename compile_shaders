@@ -1,2 +1,15 @@
 #!/usr/bin/env bash
-~/vulkansdk/default/x86_64/bin/slangc shaders/first.slang -target spirv -profile spirv_1_4 -emit-spirv-directly -fvk-use-entrypoint-name -entry vertMain -entry fragMain -o shaders/slang.spv
+
+SHADER_DIR="shaders/"
+
+compile-shader()
+{
+	local SHADER_IN="$1"
+	echo "Compiling $SHADER_IN..."
+	local SHADER_OUT="${SHADER_IN%.slang}.spv"
+	~/vulkansdk/default/x86_64/bin/slangc "$SHADER_IN" -target spirv -profile spirv_1_4 -emit-spirv-directly -fvk-use-entrypoint-name -entry vertMain -entry fragMain -o "$SHADER_OUT"
+}
+
+for shader in "$SHADER_DIR"*.slang; do
+	compile-shader "$shader"
+done
