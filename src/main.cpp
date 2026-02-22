@@ -715,6 +715,8 @@ class App
 		void initWindow()
 		{
 #ifdef GLFW
+			// Hyprland window dimension fix
+			glfwInitHint(GLFW_WAYLAND_LIBDECOR, GLFW_WAYLAND_DISABLE_LIBDECOR);
 			glfwInit();
 			// Disable OpenGL
 			glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
