@@ -6,7 +6,7 @@ This is a repostitory mostly intended for private use and reference by me when w
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/8652d246-7a1b-441a-b40e-6dcdc2864184" />
 
 ## :sparkles: Setup and configuration
-After having installed all the [Dependencies](#package-dependencies), clone the repository. To run the triangle demo execute the run script with the window backend of your choice (leave empty for SDL).
+After having installed all the [Dependencies](#package-dependencies), clone the repository. To run the triangle demo execute the run script with the window backend of your choice (leave empty for cache/SDL by default).
 ```sh
 git clone git@github.com:Feeeeddmmmeee/VulkanTesting.git
 cd VulkanTesting
@@ -16,7 +16,7 @@ cd VulkanTesting
 ## :package: Dependencies
 | Library | Use |
 | --- | --- |
-| SDL3 or GLFW | Window creation |
+| SDL3 or GLFW | Window creation (only one of these is required) |
 | Vulkan | Graphics API |
 | LunarG's Vulkan SDK | Provides Vulkan validation layers + a slang shader compiler, though if you remove the _DEBUG definition from the Cmake file and compile the shaders yourself it is not needed. |
 
