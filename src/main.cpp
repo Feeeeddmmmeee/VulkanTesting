@@ -85,6 +85,8 @@ class App
 		std::vector<vk::raii::Fence> drawF;
 		uint32_t frameIndex = 0;
 
+		bool frameBufferResized = false;
+
 		void initVulkan()
 		{
 			createInstance();
@@ -108,6 +110,24 @@ class App
 
 		void recreateSwapchain()
 		{
+			int w=0, h=0;
+#ifdef GLFW
+			glfwGetFramebufferSize(window, &w, &h);
+			while(w==0||h==0)
+			{
+				glfwGetFramebufferSize(window, &w, &h);
+				glfwWaitEvents();
+			}
+#endif
+#ifdef SDL
+			SDL_GetWindowSizeInPixels(window, &w, &h);
+			while(w==0||h==0)
+			{
+				SDL_GetWindowSizeInPixels(window, &w, &h);
+				handleEvents();
+			}
+#endif
+
 			device.waitIdle();
 
 			cleanupSwapchain();
@@ -125,9 +145,22 @@ class App
 			
 			// true => wait for all, uint64max = timeout
 			auto fenceRes = device.waitForFences(*drawF[frameIndex], vk::True, UINT64_MAX);
-			device.resetFences(*drawF[frameIndex]);
 
 			auto [res, imageIndex] = swapchain.acquireNextImage(UINT64_MAX, *presentCompleteS[frameIndex], nullptr);
+			if(res == vk::Result::eErrorOutOfDateKHR)
+			{
+				recreateSwapchain();
+				return;
+			}
+			if (res != vk::Result::eSuccess && res != vk::Result::eSuboptimalKHR)
+			{
+				assert(res == vk::Result::eTimeout || res == vk::Result::eNotReady);
+				throw std::runtime_error("Failed to acquire swapchain image!");
+			}
+
+			// Make sure to only reset the fence if we are actually rendering
+			device.resetFences(*drawF[frameIndex]);
+
 			cmdBuffers[frameIndex].reset();
 			recordCommandBuffer(imageIndex);
 			
@@ -153,6 +186,15 @@ class App
 			};
 
 			auto result = presentQueue.presentKHR(presentInfo);
+			if(result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR || frameBufferResized)
+			{
+				frameBufferResized = false;
+				recreateSwapchain();
+			}
+			else if (result != vk::Result::eSuccess)
+			{
+				throw std::runtime_error("Failed to acquire swapchain image!");
+			}
 			frameIndex = (frameIndex+1)%MAX_FRAMES_IN_FLIGHT;
 		}
 
@@ -714,6 +756,9 @@ class App
 					case SDL_EVENT_QUIT:
 						running = 0;
 						break;
+					case SDL_EVENT_WINDOW_RESIZED:
+						frameBufferResized = true;
+						break;
 				}
 			}
 		}
@@ -748,16 +793,18 @@ class App
 			glfwInit();
 			// Disable OpenGL
 			glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-			// Disable window resizing
-			glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
 			window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan Testing", nullptr, nullptr);
+			glfwSetWindowUserPointer(window, this);
+			glfwSetFramebufferSizeCallback(window, [](GLFWwindow *win, int width, int height) {
+					reinterpret_cast<App*>(glfwGetWindowUserPointer(win))->frameBufferResized = true;
+			});
 #endif
 #ifdef SDL
 			SDL_Init(SDL_INIT_VIDEO);
 			SDL_Vulkan_LoadLibrary(NULL);
 			
-			window = SDL_CreateWindow("Vulkan Testing", WIDTH, HEIGHT, SDL_WINDOW_VULKAN);
+			window = SDL_CreateWindow("Vulkan Testing", WIDTH, HEIGHT, SDL_WINDOW_VULKAN|SDL_WINDOW_RESIZABLE);
 #endif
 
 		}
