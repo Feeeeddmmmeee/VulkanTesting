@@ -52,14 +52,22 @@ struct Vertex
 	 }
 };
 
-// Triangle with colored vertices
-const std::vector<Vertex> triangleRainbow = {
+const std::vector<Vertex> triangle = {
 	{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
 	{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
 	{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
 };
 
-auto vertices = triangleRainbow;
+const std::vector<Vertex> square = {
+	{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+	{{0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}},
+	{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+	{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+	{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+	{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}}
+};
+
+auto vertices = triangle;
 
 const std::vector<char const*> validationLayers = {
     "VK_LAYER_KHRONOS_validation"
@@ -358,7 +366,7 @@ class App
 
 			cmdBuffers[frameIndex].bindVertexBuffers(0, *vertexBuffer, {0});
 
-			cmdBuffers[frameIndex].draw(3, 1, 0, 0);
+			cmdBuffers[frameIndex].draw(vertices.size(), 1, 0, 0);
 
 			cmdBuffers[frameIndex].endRendering();
 			
