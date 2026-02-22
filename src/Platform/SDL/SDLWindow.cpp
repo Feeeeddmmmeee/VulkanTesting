@@ -21,7 +21,7 @@ SDLWindow::SDLWindow(const WindowSpec &spec)
 	uint32_t flags = SDL_WINDOW_VULKAN|SDL_WINDOW_RESIZABLE;
 	
 	this->window = SDL_CreateWindow(spec.name.c_str(), spec.width, spec.height, flags);
-	running = 1;
+	this->running = 1;
 }
 
 SDLWindow::~SDLWindow()
@@ -48,6 +48,13 @@ void SDLWindow::pollEvents()
 				break;
 		}
 	}
+}
+
+std::pair<int,int> SDLWindow::getFrameBufferSize()
+{
+	std::pair<int,int> out;
+	SDL_GetWindowSizeInPixels(this->window, &out.first, &out.second);
+	return out;
 }
 
 bool SDLWindow::createSurface(VkInstance instance, VkSurfaceKHR *surface)

@@ -5,11 +5,6 @@
 
 #include "Window.h"
 
-#ifdef GLFW
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-#endif
-
 #include <glm/glm.hpp>
 
 #include <iostream>
@@ -181,19 +176,11 @@ class App
 
 		void recreateSwapchain()
 		{
-			int w=0, h=0;
-#ifdef GLFW
-			glfwGetFramebufferSize(window, &w, &h);
-			while(w==0||h==0)
+			auto [w, h] = window->getFrameBufferSize();
+			while(w==0 || h==0)
 			{
-				glfwGetFramebufferSize(window, &w, &h);
-				glfwWaitEvents();
-			}
-#endif
-			auto win = window->getSpec();
-			while(win.height==0||win.width==0)
-			{
-				win = window->getSpec();
+				auto [tw, th] = window->getFrameBufferSize();
+				w=tw; h=th;
 				window->pollEvents();
 			}
 
@@ -552,12 +539,8 @@ class App
 		{
 			if(cap.currentExtent.width != std::numeric_limits<uint32_t>::max() && cap.currentExtent.height != std::numeric_limits<uint32_t>::max())
 				return cap.currentExtent;
-			int w, h;
-#ifdef GLFW
-			glfwGetFramebufferSize(window,&w,&h);
-#endif
-			auto win = window->getSpec();
-			w = win.width; h = win.height;
+
+			auto [w, h] = window->getFrameBufferSize();
 			
 			return {
 				std::clamp<uint32_t>(w, cap.minImageExtent.width, cap.maxImageExtent.width),
@@ -588,10 +571,6 @@ class App
 		void createSurface()
 		{
 			VkSurfaceKHR _surface;
-#ifdef GLFW
-			if(glfwCreateWindowSurface(*instance, window,nullptr,&_surface)!=0)
-				throw std::runtime_error("Failed to create window surface!");
-#endif
 			if(window->createSurface(*instance, &_surface))
 				throw std::runtime_error("Failed to create window surface");
 
@@ -807,9 +786,7 @@ class App
 		{
 			uint32_t extCount = 0;
 			const char * const*ext;
-#ifdef GLFW
-			ext = glfwGetRequiredInstanceExtensions(&extCount);
-#endif
+
 			ext = Window::getInstanceExtensions(&extCount);
 
 			std::vector extensions(ext, ext + extCount);
@@ -822,13 +799,6 @@ class App
 
 		void mainLoop()
 		{
-#ifdef GLFW
-			while(!glfwWindowShouldClose(window))
-			{
-				glfwPollEvents();
-				drawFrame();
-			}
-#endif
 			while(window->isRunning())
 			{
 				window->pollEvents();
@@ -840,20 +810,6 @@ class App
 
 		void initWindow()
 		{
-#ifdef GLFW
-			// Hyprland window dimension fix
-			glfwInitHint(GLFW_WAYLAND_LIBDECOR, GLFW_WAYLAND_DISABLE_LIBDECOR);
-
-			glfwInit();
-			// Disable OpenGL
-			glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-
-			window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan Testing", nullptr, nullptr);
-			glfwSetWindowUserPointer(window, this);
-			glfwSetFramebufferSizeCallback(window, [](GLFWwindow *win, int width, int height) {
-					reinterpret_cast<App*>(glfwGetWindowUserPointer(win))->frameBufferResized = true;
-			});
-#endif
 			window = Window::create({
 				.name="Vulkan Testing",
 				.width=WIDTH,
@@ -868,10 +824,6 @@ class App
 			// After cleaning up the swapchain glfwTerminate and SDL_Quit 
 			// no longer cause a segmentation fault :))
 			cleanupSwapchain();
-#ifdef GLFW
-			glfwDestroyWindow(window);
-			glfwTerminate();
-#endif
 			delete window;
 		}
 };

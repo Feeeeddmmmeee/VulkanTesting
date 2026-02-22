@@ -2,18 +2,19 @@
 
 #include "Window.h"
 
-#include <SDL3/SDL.h>
+#define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
 
-class SDLWindow : public Window
+class GLFWWindow : public Window
 {
 	public:
-		SDLWindow(const WindowSpec &spec);
-		~SDLWindow();
+		GLFWWindow(const WindowSpec &spec);
+		~GLFWWindow();
 
 		virtual bool createSurface(VkInstance instance, VkSurfaceKHR *surface) override;
 		virtual void pollEvents() override;
 		virtual std::pair<int,int> getFrameBufferSize() override;
 
 	private:
-		SDL_Window *window;
+		GLFWwindow *window;
 };

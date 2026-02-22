@@ -1,6 +1,8 @@
 #pragma once
 
 #include <string>
+#include <utility>
+
 #include <vulkan/vulkan.h>
 
 struct WindowSpec
@@ -16,6 +18,7 @@ class Window
 		virtual ~Window() = default;
 		virtual bool createSurface(VkInstance instance, VkSurfaceKHR *surface) = 0;
 		virtual void pollEvents() = 0;
+		virtual std::pair<int,int> getFrameBufferSize() = 0;
 
 		const WindowSpec &getSpec() { return this->spec; }
 		bool isRunning() { return this->running; }
