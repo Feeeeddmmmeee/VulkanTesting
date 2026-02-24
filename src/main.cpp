@@ -84,8 +84,6 @@ class App
 		}
 
 	private:
-		std::unique_ptr<Window> window;
-
 		vk::raii::Context context;
 		vk::raii::Instance instance = nullptr;
 		vk::raii::DebugUtilsMessengerEXT debugMessenger = nullptr;
@@ -115,6 +113,8 @@ class App
 		uint32_t frameIndex = 0;
 
 		bool frameBufferResized = false;
+
+		std::unique_ptr<Window> window;
 
 		void initVulkan()
 		{
@@ -578,26 +578,26 @@ class App
 
 		void createLogicalDevice()
 		{
-			auto queueFamiliProps = pDevice.getQueueFamilyProperties();
+			auto queueFamilyProps = pDevice.getQueueFamilyProperties();
 			// get the first index into queueFamilyProperties which supports graphics
-			auto graphicsQueueFamilyProperty = std::ranges::find_if( queueFamiliProps, []( auto const & qfp )
+			auto graphicsQueueFamilyProperty = std::ranges::find_if( queueFamilyProps, []( auto const & qfp )
 					{ return (qfp.queueFlags & vk::QueueFlagBits::eGraphics) != static_cast<vk::QueueFlags>(0); } );
 
-			auto graphicsIndex = static_cast<uint32_t>( std::distance( queueFamiliProps.begin(), graphicsQueueFamilyProperty ) );
+			auto graphicsIndex = static_cast<uint32_t>( std::distance( queueFamilyProps.begin(), graphicsQueueFamilyProperty ) );
 			graphicsQueueIndex = graphicsIndex;
 
 			// determine a queueFamilyIndex that supports present
 			// first check if the graphicsIndex is good enough
 			auto presentIndex = pDevice.getSurfaceSupportKHR( graphicsIndex, *surface )
 				? graphicsIndex
-				: static_cast<uint32_t>( queueFamiliProps.size() );
-			if ( presentIndex == queueFamiliProps.size() )
+				: static_cast<uint32_t>( queueFamilyProps.size() );
+			if ( presentIndex == queueFamilyProps.size() )
 			{
 				// the graphicsIndex doesn't support present -> look for another family index that supports both
 				// graphics and present
-				for ( size_t i = 0; i < queueFamiliProps.size(); i++ )
+				for ( size_t i = 0; i < queueFamilyProps.size(); i++ )
 				{
-					if ( ( queueFamiliProps[i].queueFlags & vk::QueueFlagBits::eGraphics ) &&
+					if ( ( queueFamilyProps[i].queueFlags & vk::QueueFlagBits::eGraphics ) &&
 							pDevice.getSurfaceSupportKHR( static_cast<uint32_t>( i ), *surface ) )
 					{
 						graphicsIndex = static_cast<uint32_t>( i );
@@ -605,11 +605,11 @@ class App
 						break;
 					}
 				}
-				if ( presentIndex == queueFamiliProps.size() )
+				if ( presentIndex == queueFamilyProps.size() )
 				{
 					// there's nothing like a single family index that supports both graphics and present -> look for another
 					// family index that supports present
-					for ( size_t i = 0; i < queueFamiliProps.size(); i++ )
+					for ( size_t i = 0; i < queueFamilyProps.size(); i++ )
 					{
 						if ( pDevice.getSurfaceSupportKHR( static_cast<uint32_t>( i ), *surface ) )
 						{
@@ -619,7 +619,7 @@ class App
 					}
 				}
 			}
-			if ( ( graphicsIndex == queueFamiliProps.size() ) || ( presentIndex == queueFamiliProps.size() ) )
+			if ( ( graphicsIndex == queueFamilyProps.size() ) || ( presentIndex == queueFamilyProps.size() ) )
 			{
 				throw std::runtime_error( "Could not find a queue for graphics or present -> terminating" );
 			}
