@@ -84,7 +84,7 @@ class App
 		}
 
 	private:
-		Window *window;
+		std::unique_ptr<Window> window;
 
 		vk::raii::Context context;
 		vk::raii::Instance instance = nullptr;
@@ -809,21 +809,18 @@ class App
 
 		void initWindow()
 		{
-			window = Window::create({
+			window = std::unique_ptr<Window>(Window::create({
 				.name="Vulkan Testing",
 				.width=WIDTH,
 				.height=HEIGHT,
 				.frameBufferResizeCallback=&frameBufferResized}
-			);
+			));
 
 		}
 
 		void cleanup()
 		{
-			// After cleaning up the swapchain glfwTerminate and SDL_Quit 
-			// no longer cause a segmentation fault :))
 			cleanupSwapchain();
-			delete window;
 		}
 };
 
