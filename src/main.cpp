@@ -58,6 +58,15 @@ const std::vector<Vertex> square = {
 	{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}}
 };
 
+const std::vector<Vertex> fullSquare = {
+	{{1.0f, -1.0f}, {0.0f, 1.0f, 0.0f}},
+	{{1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}},
+	{{-1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
+	{{-1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
+	{{-1.0f, -1.0f}, {1.0f, 0.0f, 0.0f}},
+	{{1.0f, -1.0f}, {0.0f, 1.0f, 0.0f}}
+};
+
 auto vertices = triangle;
 
 const std::vector<char const*> validationLayers = {
