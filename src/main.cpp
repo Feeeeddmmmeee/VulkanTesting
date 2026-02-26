@@ -72,20 +72,19 @@ const std::vector<Vertex> rect = {
 	{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
 	{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
 };
+
+const std::vector<Vertex> fullRect = {
+	{{1.0f, -1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+	{{1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+	{{-1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+	{{-1.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
+};
+
 const std::vector<uint16_t> rectIndices = {
 	0, 1, 2, 2, 3, 0
 };
 
-const std::vector<Vertex> fullSquare = {
-	{{1.0f, -1.0f}, {0.0f, 1.0f, 0.0f}},
-	{{1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}},
-	{{-1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
-	{{-1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
-	{{-1.0f, -1.0f}, {1.0f, 0.0f, 0.0f}},
-	{{1.0f, -1.0f}, {0.0f, 1.0f, 0.0f}}
-};
-
-auto vertices = rect;
+auto vertices = fullRect;
 auto indices = rectIndices;
 
 const std::vector<char const*> validationLayers = {
@@ -362,14 +361,14 @@ class App
 		{
 			std::array poolSize = {
 				vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, MAX_FRAMES_IN_FLIGHT),
-				vk::DescriptorPoolSize(vk::DescriptorType::eSampler, MAX_FRAMES_IN_FLIGHT)
+				vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, MAX_FRAMES_IN_FLIGHT)
 			};
 
 			vk::DescriptorPoolCreateInfo poolInfo{
 				.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
 					.maxSets=MAX_FRAMES_IN_FLIGHT,
 					.poolSizeCount=poolSize.size(),
-					.pPoolSizes=poolSize.data()
+					.pPoolSizes=poolSize.data(),
 			};
 			
 			descPool = vk::raii::DescriptorPool(device, poolInfo);
