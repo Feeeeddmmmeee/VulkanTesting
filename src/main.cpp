@@ -362,14 +362,14 @@ class App
 		{
 			std::array poolSize = {
 				vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, MAX_FRAMES_IN_FLIGHT),
-				vk::DescriptorPoolSize(vk::DescriptorType::eSampler, MAX_FRAMES_IN_FLIGHT)
+				vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, MAX_FRAMES_IN_FLIGHT)
 			};
 
 			vk::DescriptorPoolCreateInfo poolInfo{
 				.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
 					.maxSets=MAX_FRAMES_IN_FLIGHT,
 					.poolSizeCount=poolSize.size(),
-					.pPoolSizes=poolSize.data()
+					.pPoolSizes=poolSize.data(),
 			};
 			
 			descPool = vk::raii::DescriptorPool(device, poolInfo);
