@@ -4,13 +4,16 @@
 
 #include "Window.h"
 
+#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <iostream>
 #include <fstream>
 #include <algorithm>
 #include <limits>
 #include <array>
+#include <chrono>
 
 #define LOG(x) std::cout<<x<<std::endl;
 
@@ -23,7 +26,7 @@ constexpr bool _ENABLE_VALIDATION_LAYERS = false;
 constexpr uint32_t WIDTH = 800;
 constexpr uint32_t HEIGHT = 600;
 constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
-constexpr const char* SHADER_PATH = "shaders/vertexBuffer.spv";
+constexpr const char* SHADER_PATH = "shaders/projected.spv";
 
 struct Vertex
 {
@@ -41,6 +44,13 @@ struct Vertex
 				vk::VertexInputAttributeDescription(1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color))
 		};
 	}
+};
+
+struct UniformBufferObject
+{
+	glm::mat4 model;
+	glm::mat4 view;
+	glm::mat4 proj;
 };
 
 const std::vector<Vertex> triangle = {
@@ -117,7 +127,17 @@ class App
 		vk::raii::Buffer indexBuffer = nullptr;
 		vk::raii::DeviceMemory iBufferMemory = nullptr;
 
+		std::vector<vk::raii::Buffer> uniformBuffers;
+		std::vector<vk::raii::DeviceMemory> uBuffersMemory;
+		std::vector<void*> uBuffersMapped;
+
+		vk::raii::DescriptorSetLayout descSetLayout = nullptr;
+		vk::raii::PipelineLayout pipelineLayout = nullptr;
 		vk::raii::Pipeline graphicsPipeline = nullptr;
+
+		vk::raii::DescriptorPool descPool = nullptr;
+		std::vector<vk::raii::DescriptorSet> descSets;
+
 		vk::raii::CommandPool commandPool = nullptr;
 		std::vector<vk::raii::CommandBuffer> cmdBuffers;
 		std::vector<vk::raii::Semaphore> presentCompleteS;
@@ -138,12 +158,96 @@ class App
 			createLogicalDevice();
 			createSwapChain();
 			createImageViews();
+			createDescSetLayout();
 			createPipeline();
 			createCommandPool();
 			createVertexBuffer();
 			createIndexBuffer();
+			createUniformBuffers();
+			createDescPool();
+			createDescSets();
 			createCommandBuffers();
 			createSyncObjects();
+		}
+
+		void createDescSets()
+		{
+			std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, *descSetLayout);
+			vk::DescriptorSetAllocateInfo allocInfo{
+				.descriptorPool = descPool,
+					.descriptorSetCount = static_cast<uint32_t>(layouts.size()),
+					.pSetLayouts = layouts.data()
+			};
+
+			descSets.clear();
+			descSets = device.allocateDescriptorSets(allocInfo);
+
+			for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
+			{
+				vk::DescriptorBufferInfo bufferInfo{ .buffer = uniformBuffers[i], .offset = 0, .range = sizeof(UniformBufferObject) };
+				vk::WriteDescriptorSet descriptorWrite{ .dstSet = descSets[i], .dstBinding = 0, .dstArrayElement = 0, .descriptorCount = 1, .descriptorType = vk::DescriptorType::eUniformBuffer, .pBufferInfo = &bufferInfo };
+				device.updateDescriptorSets(descriptorWrite, {});
+			}
+		}
+
+		void createDescPool()
+		{
+			vk::DescriptorPoolSize poolSize(vk::DescriptorType::eUniformBuffer, MAX_FRAMES_IN_FLIGHT);
+			vk::DescriptorPoolCreateInfo poolInfo{
+				.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
+					.maxSets=MAX_FRAMES_IN_FLIGHT,
+					.poolSizeCount=1,
+					.pPoolSizes=&poolSize
+			};
+			
+			descPool = vk::raii::DescriptorPool(device, poolInfo);
+		}
+
+		void updateUniformBuffer(uint32_t currentImage)
+		{
+			static auto startTime = std::chrono::high_resolution_clock::now();
+
+			auto currentTime = std::chrono::high_resolution_clock::now();
+			float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+			
+			UniformBufferObject ubo{};
+			ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+			ubo.view = lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+			ubo.proj = glm::perspective(glm::radians(45.0f), static_cast<float>(swapChainExtent.width) / static_cast<float>(swapChainExtent.height), 0.1f, 10.0f);
+			ubo.proj[1][1] *= -1; // otherwise it would be upside down
+
+			memcpy(uBuffersMapped[currentImage], &ubo, sizeof(ubo));
+		}
+
+		void createUniformBuffers()
+		{
+			uniformBuffers.clear();
+			uBuffersMemory.clear();
+			uBuffersMapped.clear();
+
+			for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
+			{
+				vk::DeviceSize bufSize = sizeof(UniformBufferObject);
+				vk::raii::Buffer buffer({});
+				vk::raii::DeviceMemory memory({});
+
+				createBuffer(bufSize, vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible|
+						vk::MemoryPropertyFlagBits::eHostCoherent, buffer, memory);
+
+				uniformBuffers.emplace_back(std::move(buffer));
+				uBuffersMemory.emplace_back(std::move(memory));
+				uBuffersMapped.emplace_back(uBuffersMemory[i].mapMemory(0, bufSize));
+			}
+		}
+
+		void createDescSetLayout()
+		{
+			vk::DescriptorSetLayoutBinding uboLayoutBinding(0,
+					vk::DescriptorType::eUniformBuffer, 1,
+					vk::ShaderStageFlagBits::eVertex, nullptr);
+
+			vk::DescriptorSetLayoutCreateInfo layoutInfo{.bindingCount=1, .pBindings=&uboLayoutBinding};
+			descSetLayout = vk::raii::DescriptorSetLayout(device, layoutInfo);
 		}
 
 		void createIndexBuffer()
@@ -264,6 +368,8 @@ class App
 				assert(res == vk::Result::eTimeout || res == vk::Result::eNotReady);
 				throw std::runtime_error("Failed to acquire swapchain image!");
 			}
+
+			updateUniformBuffer(frameIndex);
 
 			// Make sure to only reset the fence if we are actually rendering
 			device.resetFences(*drawF[frameIndex]);
@@ -396,6 +502,7 @@ class App
 			cmdBuffers[frameIndex].bindVertexBuffers(0, *vertexBuffer, {0});
 			cmdBuffers[frameIndex].bindIndexBuffer(*indexBuffer, 0, vk::IndexType::eUint16);
 
+			cmdBuffers[frameIndex].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, *descSets[frameIndex], nullptr);
 			cmdBuffers[frameIndex].drawIndexed(indices.size(), 1, 0, 0, 0);
 
 			cmdBuffers[frameIndex].endRendering();
@@ -472,7 +579,7 @@ class App
 					.rasterizerDiscardEnable = vk::False,
 					.polygonMode = vk::PolygonMode::eFill,
 					.cullMode = vk::CullModeFlagBits::eBack,
-					.frontFace = vk::FrontFace::eClockwise,
+					.frontFace = vk::FrontFace::eCounterClockwise,
 					.depthBiasEnable = vk::False,
 					.depthBiasSlopeFactor = 1.0f,
 					.lineWidth = 1.0f
@@ -494,8 +601,10 @@ class App
 			colorBlendAttachment.alphaBlendOp = vk::BlendOp::eAdd;
 			vk::PipelineColorBlendStateCreateInfo colorBlending{.logicOpEnable = vk::False, .logicOp =  vk::LogicOp::eCopy, .attachmentCount = 1, .pAttachments =  &colorBlendAttachment };
 
-			vk::raii::PipelineLayout pipelineLayout = nullptr;
-			vk::PipelineLayoutCreateInfo pipelineLayoutInfo{.setLayoutCount=0,.pushConstantRangeCount=0};
+			vk::PipelineLayoutCreateInfo pipelineLayoutInfo{.setLayoutCount=1,
+				.pSetLayouts=&*descSetLayout,			
+				.pushConstantRangeCount=0
+			};
 			pipelineLayout = vk::raii::PipelineLayout(device, pipelineLayoutInfo);
 
 			vk::PipelineRenderingCreateInfo renderingCreateInfo{.colorAttachmentCount=1,.pColorAttachmentFormats=&swapChainSurfaceFormat.format};
