@@ -2,3 +2,4 @@ build/
 .cache
 readme.md
 shaders/*.spv
+textures/
