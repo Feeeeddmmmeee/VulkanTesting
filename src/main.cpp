@@ -49,13 +49,14 @@ const std::vector<Vertex> triangle = {
 	{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
 };
 
-const std::vector<Vertex> square = {
+const std::vector<Vertex> rect = {
 	{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
 	{{0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}},
 	{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
-	{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
 	{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-	{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}}
+};
+const std::vector<uint16_t> rectIndices = {
+	0, 1, 2, 2, 3, 0
 };
 
 const std::vector<Vertex> fullSquare = {
@@ -67,7 +68,8 @@ const std::vector<Vertex> fullSquare = {
 	{{1.0f, -1.0f}, {0.0f, 1.0f, 0.0f}}
 };
 
-auto vertices = triangle;
+auto vertices = rect;
+auto indices = rectIndices;
 
 const std::vector<char const*> validationLayers = {
     "VK_LAYER_KHRONOS_validation"
@@ -112,6 +114,8 @@ class App
 
 		vk::raii::Buffer vertexBuffer = nullptr;
 		vk::raii::DeviceMemory vBufferMemory = nullptr;
+		vk::raii::Buffer indexBuffer = nullptr;
+		vk::raii::DeviceMemory iBufferMemory = nullptr;
 
 		vk::raii::Pipeline graphicsPipeline = nullptr;
 		vk::raii::CommandPool commandPool = nullptr;
@@ -137,8 +141,26 @@ class App
 			createPipeline();
 			createCommandPool();
 			createVertexBuffer();
+			createIndexBuffer();
 			createCommandBuffers();
 			createSyncObjects();
+		}
+
+		void createIndexBuffer()
+		{
+			vk::DeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+
+			vk::raii::Buffer stagingBuffer({});
+			vk::raii::DeviceMemory stagingBufferMemory({});
+			createBuffer(bufferSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, stagingBuffer, stagingBufferMemory);
+
+			void* data = stagingBufferMemory.mapMemory(0, bufferSize);
+			memcpy(data, indices.data(), (size_t) bufferSize);
+			stagingBufferMemory.unmapMemory();
+
+			createBuffer(bufferSize, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal, indexBuffer, iBufferMemory);
+
+			copyBuffer(stagingBuffer, indexBuffer, bufferSize);
 		}
 
 		void copyBuffer(vk::raii::Buffer &srcBuf, vk::raii::Buffer &dstBuf, vk::DeviceSize size)
@@ -372,8 +394,9 @@ class App
 			cmdBuffers[frameIndex].setScissor(0, vk::Rect2D(vk::Offset2D(0,0), swapChainExtent));
 
 			cmdBuffers[frameIndex].bindVertexBuffers(0, *vertexBuffer, {0});
+			cmdBuffers[frameIndex].bindIndexBuffer(*indexBuffer, 0, vk::IndexType::eUint16);
 
-			cmdBuffers[frameIndex].draw(vertices.size(), 1, 0, 0);
+			cmdBuffers[frameIndex].drawIndexed(indices.size(), 1, 0, 0, 0);
 
 			cmdBuffers[frameIndex].endRendering();
 			
