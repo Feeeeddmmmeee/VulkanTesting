@@ -9,7 +9,7 @@ This is a repostitory mostly intended for private use and reference by me when w
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/8652d246-7a1b-441a-b40e-6dcdc2864184" />
 
 ## :sparkles: Setup and configuration
-After having installed all the [Dependencies](#package-dependencies), clone the repository. To run the triangle demo execute the run script with the window backend of your choice (leave empty for cache/SDL by default).
+After having installed all the [Dependencies](#package-dependencies), clone the repository. To run the demo execute the run script with the window backend of your choice (leave empty for cache/SDL by default).
 ```sh
 git clone git@github.com:Feeeeddmmmeee/VulkanTesting.git
 cd VulkanTesting
