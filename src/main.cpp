@@ -4,13 +4,18 @@
 
 #include "Window.h"
 
+#define GLM_ENABLE_EXPERIMENTAL
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // convert from opengl's -1 - 1 depth to vulkan's 0 - 1
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/hash.hpp>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
+
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
 
 #include <iostream>
 #include <fstream>
@@ -18,6 +23,7 @@
 #include <limits>
 #include <array>
 #include <chrono>
+#include <unordered_map>
 
 #define LOG(x) std::cout<<x<<std::endl;
 
@@ -31,8 +37,10 @@ constexpr uint32_t WIDTH = 800;
 constexpr uint32_t HEIGHT = 600;
 constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
 
+constexpr float MODEL_SCALE = 1.0f;
 constexpr const char* SHADER_PATH = "shaders/texture.spv";
-constexpr const char* TEXTURE_PATH = "textures/texture2.png";
+constexpr const char* TEXTURE_PATH = "textures/viking_room.png";
+constexpr const char* MODEL_PATH = "models/viking_room.obj";
 
 struct Vertex
 {
@@ -52,7 +60,20 @@ struct Vertex
 				vk::VertexInputAttributeDescription(2, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, texCoord))
 		};
 	}
+	bool operator==(const Vertex& other) const {
+		return pos == other.pos && color == other.color && texCoord == other.texCoord;
+	}
 };
+
+namespace std {
+    template<> struct hash<Vertex> {
+        size_t operator()(Vertex const& vertex) const {
+            return ((hash<glm::vec3>()(vertex.pos) ^
+                   (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^
+                   (hash<glm::vec2>()(vertex.texCoord) << 1);
+        }
+    };
+}
 
 struct UniformBufferObject
 {
@@ -90,8 +111,8 @@ const std::vector<uint16_t> rectIndices = {
 	4, 5, 6, 6, 7, 4
 };
 
-auto vertices = fullRect;
-auto indices = rectIndices;
+// auto vertices = fullRect;
+// auto indices = rectIndices;
 
 const std::vector<char const*> validationLayers = {
     "VK_LAYER_KHRONOS_validation"
@@ -134,6 +155,8 @@ class App
 		vk::Extent2D swapChainExtent;
 		std::vector<vk::raii::ImageView> swapChainImageViews;
 
+		std::vector<Vertex> vertices;
+		std::vector<uint32_t> indices;
 		vk::raii::Buffer vertexBuffer = nullptr;
 		vk::raii::DeviceMemory vBufferMemory = nullptr;
 		vk::raii::Buffer indexBuffer = nullptr;
@@ -186,6 +209,7 @@ class App
 			createTextureImage();
 			createTextureImageView();
 			createTextureSampler();
+			loadModel();
 			createVertexBuffer();
 			createIndexBuffer();
 			createUniformBuffers();
@@ -193,6 +217,48 @@ class App
 			createDescSets();
 			createCommandBuffers();
 			createSyncObjects();
+		}
+
+		void loadModel()
+		{
+			tinyobj::attrib_t attrib;
+			std::vector<tinyobj::shape_t> shapes;
+			std::vector<tinyobj::material_t> materials;
+			std::string warn, err;
+
+			if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, MODEL_PATH)) {
+				throw std::runtime_error(warn + err);
+			}
+
+			std::unordered_map<Vertex, uint32_t> uniqueVerts{};
+
+			for (const auto& shape : shapes) {
+				for (const auto& index : shape.mesh.indices) {
+					Vertex vertex{};
+
+					vertex.pos = {
+						attrib.vertices[3 * index.vertex_index + 0]*MODEL_SCALE,
+						attrib.vertices[3 * index.vertex_index + 1]*MODEL_SCALE,
+						attrib.vertices[3 * index.vertex_index + 2]*MODEL_SCALE
+					};
+
+					if(attrib.texcoords.size())
+					{
+						vertex.texCoord = {
+							attrib.texcoords[2 * index.texcoord_index + 0],
+							1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+						};
+					}
+
+					vertex.color = {1.0f, 1.0f, 1.0f};
+					if(!uniqueVerts.contains(vertex))
+					{
+						uniqueVerts[vertex] = vertices.size();
+						vertices.push_back(vertex);
+					}
+					indices.push_back(uniqueVerts[vertex]);
+				}
+			}
 		}
 
 		bool hasStencilComponent(vk::Format format) {
@@ -733,7 +799,7 @@ class App
 			cmdBuffers[frameIndex].setScissor(0, vk::Rect2D(vk::Offset2D(0,0), swapChainExtent));
 
 			cmdBuffers[frameIndex].bindVertexBuffers(0, *vertexBuffer, {0});
-			cmdBuffers[frameIndex].bindIndexBuffer(*indexBuffer, 0, vk::IndexType::eUint16);
+			cmdBuffers[frameIndex].bindIndexBuffer(*indexBuffer, 0, vk::IndexType::eUint32);
 
 			cmdBuffers[frameIndex].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, *descSets[frameIndex], nullptr);
 			cmdBuffers[frameIndex].drawIndexed(indices.size(), 1, 0, 0, 0);
