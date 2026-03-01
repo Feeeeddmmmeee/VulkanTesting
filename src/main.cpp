@@ -82,38 +82,6 @@ struct UniformBufferObject
 	glm::mat4 proj;
 };
 
-const std::vector<Vertex> triangle = {
-	{{0.0f, -0.5f, 0}, {1.0f, 0.0f, 0.0f}},
-	{{0.5f, 0.5f, 0}, {0.0f, 1.0f, 0.0f}},
-	{{-0.5f, 0.5f, 0}, {0.0f, 0.0f, 1.0f}}
-};
-
-const std::vector<Vertex> rect = {
-	{{0.5f, -0.5f, 0}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}}, 
-	{{0.5f, 0.5f, 0}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-	{{-0.5f, 0.5f, 0}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-	{{-0.5f, -0.5f, 0}, {1.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
-};
-
-const std::vector<Vertex> fullRect = {
-	{{1.0f, -1.0f, 0}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-	{{1.0f, 1.0f, 0}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-	{{-1.0f, 1.0f, 0}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-	{{-1.0f, -1.0f, 0}, {1.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
-	{{1.0f, -1.0f, -.5}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-	{{1.0f, 1.0f, -.5}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-	{{-1.0f, 1.0f, -.5}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-	{{-1.0f, -1.0f, -.5}, {1.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
-};
-
-const std::vector<uint16_t> rectIndices = {
-	0, 1, 2, 2, 3, 0,
-	4, 5, 6, 6, 7, 4
-};
-
-// auto vertices = fullRect;
-// auto indices = rectIndices;
-
 const std::vector<char const*> validationLayers = {
     "VK_LAYER_KHRONOS_validation"
 };
