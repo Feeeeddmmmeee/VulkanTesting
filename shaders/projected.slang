@@ -1,7 +1,6 @@
 struct VSInput {
 	float3 inPos;
 	float3 inColor;
-	float2 inTexCoord;
 };
 
 struct UniformBuffer {
@@ -22,7 +21,6 @@ VSOutput vertMain(VSInput input)
 	VSOutput out;
 	out.pos = mul(ubo.proj, mul(ubo.view ,mul(ubo.model, float4(input.inPos, 1.0))));
 	out.color = input.inColor;
-	float2 a = input.inTexCoord;
 	return out;
 }
 
