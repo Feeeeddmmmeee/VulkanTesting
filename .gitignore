@@ -3,3 +3,4 @@ build/
 readme.md
 shaders/*.spv
 textures/
+models/
