@@ -30,6 +30,7 @@ cd VulkanTesting
 | SDL3 or GLFW | Window creation (only one of these is required) |
 | Vulkan | Graphics API |
 | LunarG's Vulkan SDK | Provides Vulkan validation layers + a slang shader compiler, though if you remove the _DEBUG definition from the Cmake file and compile the shaders yourself it is not needed. |
+| glm | Math library |
 | stb_image | Single header image loading library |
 | tinyobjloader | Single header obj loader |
 
