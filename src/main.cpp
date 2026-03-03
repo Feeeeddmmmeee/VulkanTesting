@@ -92,8 +92,10 @@ const std::vector<const char*> deviceExtensions = {
 
 struct MeshData
 {
+		// These 2 vectors probably dont have to be stored
 		std::vector<Vertex> vertices;
 		std::vector<uint32_t> indices;
+
 		vk::raii::Buffer vertexBuffer = nullptr;
 		vk::raii::DeviceMemory vBufferMemory = nullptr;
 		vk::raii::Buffer indexBuffer = nullptr;
