@@ -1,6 +1,8 @@
 # VulkanTesting
 This is a repostitory mostly intended for private use and reference by me when writing Vulkan code. As of the time of writing the project can use either SDL or GLFW to render using Vulkan's C++ RAII implementation.
 
+As the repo is only intended to be used as a reference it is purposefully not structured well/overengineered. I will also not write a full renderer abstraction in this project as that would force me to write more opinionated code.
+
 <br>
 
 ![vulkan](https://github.com/user-attachments/assets/4148be7c-a53d-4dd8-9a2f-c29728808529)
