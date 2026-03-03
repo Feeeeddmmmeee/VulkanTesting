@@ -90,11 +90,23 @@ const std::vector<const char*> deviceExtensions = {
     vk::KHRSwapchainExtensionName
 };
 
+struct MeshData
+{
+		std::vector<Vertex> vertices;
+		std::vector<uint32_t> indices;
+		vk::raii::Buffer vertexBuffer = nullptr;
+		vk::raii::DeviceMemory vBufferMemory = nullptr;
+		vk::raii::Buffer indexBuffer = nullptr;
+		vk::raii::DeviceMemory iBufferMemory = nullptr;
+};
+
 struct Object 
 {
 	glm::vec3 pos = {0,0,0};
 	glm::vec3 rotation = {0,0,0};
 	glm::vec3 scale = {1,1,1};
+
+	MeshData mesh;
 
 	// one for each frame in flight
 	std::vector<vk::raii::Buffer> uniformBuffers;
@@ -148,13 +160,6 @@ class App
 		vk::Extent2D swapChainExtent;
 		std::vector<vk::raii::ImageView> swapChainImageViews;
 
-		std::vector<Vertex> vertices;
-		std::vector<uint32_t> indices;
-		vk::raii::Buffer vertexBuffer = nullptr;
-		vk::raii::DeviceMemory vBufferMemory = nullptr;
-		vk::raii::Buffer indexBuffer = nullptr;
-		vk::raii::DeviceMemory iBufferMemory = nullptr;
-
 		vk::raii::DescriptorSetLayout descSetLayout = nullptr;
 		vk::raii::PipelineLayout pipelineLayout = nullptr;
 		vk::raii::Pipeline graphicsPipeline = nullptr;
@@ -198,10 +203,7 @@ class App
 			createTextureImage();
 			createTextureImageView();
 			createTextureSampler();
-			loadModel();
 			setupObjects();
-			createVertexBuffer();
-			createIndexBuffer();
 			createUniformBuffers();
 			createDescPool();
 			createDescSets();
@@ -209,23 +211,71 @@ class App
 			createSyncObjects();
 		}
 
+		void createMeshIndexBuffer(MeshData &mesh)
+		{
+			vk::DeviceSize bufferSize = sizeof(mesh.indices[0]) * mesh.indices.size();
+
+			vk::raii::Buffer stagingBuffer({});
+			vk::raii::DeviceMemory stagingBufferMemory({});
+			createBuffer(bufferSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible |
+					vk::MemoryPropertyFlagBits::eHostCoherent, stagingBuffer, stagingBufferMemory);
+
+			void* data = stagingBufferMemory.mapMemory(0, bufferSize);
+			memcpy(data, mesh.indices.data(), (size_t) bufferSize);
+			stagingBufferMemory.unmapMemory();
+
+			createBuffer(bufferSize, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
+					vk::MemoryPropertyFlagBits::eDeviceLocal, mesh.indexBuffer, mesh.iBufferMemory);
+
+			copyBuffer(stagingBuffer, mesh.indexBuffer, bufferSize);
+		}
+
+		void createMeshVertexBuffer(MeshData &mesh)
+		{
+			vk::DeviceSize bufSize = sizeof(mesh.vertices[0]) * mesh.vertices.size();
+
+			vk::raii::Buffer       stagingBuffer({});
+			vk::raii::DeviceMemory stagingBufferMemory({});
+			createBuffer(bufSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible |
+					vk::MemoryPropertyFlagBits::eHostCoherent, stagingBuffer, stagingBufferMemory);
+
+			void *dataStaging = stagingBufferMemory.mapMemory(0, bufSize);
+			memcpy(dataStaging, mesh.vertices.data(), bufSize);
+			stagingBufferMemory.unmapMemory();
+
+			createBuffer(bufSize, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst,
+					vk::MemoryPropertyFlagBits::eDeviceLocal, mesh.vertexBuffer, mesh.vBufferMemory);
+
+			copyBuffer(stagingBuffer, mesh.vertexBuffer, bufSize);
+		}
+
 		void setupObjects()
 		{
 			objects[0].pos= {1, -1, .5};
 			objects[0].scale = {.5,.5,.5};
+			loadModel(objects[0].mesh.vertices, objects[0].mesh.indices, MODEL_PATH);
+			createMeshVertexBuffer(objects[0].mesh);
+			createMeshIndexBuffer(objects[0].mesh);
 			
+			loadModel(objects[1].mesh.vertices, objects[1].mesh.indices, "models/dragon.obj");
+			createMeshVertexBuffer(objects[1].mesh);
+			createMeshIndexBuffer(objects[1].mesh);
+
 			objects[2].pos = {-1,1,.5};
 			objects[2].scale = {.5,.5,.5};
+			loadModel(objects[2].mesh.vertices, objects[2].mesh.indices, MODEL_PATH);
+			createMeshVertexBuffer(objects[2].mesh);
+			createMeshIndexBuffer(objects[2].mesh);
 		}
 
-		void loadModel()
+		void loadModel(std::vector<Vertex> &vertices, std::vector<uint32_t> &indices, const char *path)
 		{
 			tinyobj::attrib_t attrib;
 			std::vector<tinyobj::shape_t> shapes;
 			std::vector<tinyobj::material_t> materials;
 			std::string warn, err;
 
-			if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, MODEL_PATH)) {
+			if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, path)) {
 				throw std::runtime_error(warn + err);
 			}
 
@@ -549,22 +599,22 @@ class App
 			descSetLayout = vk::raii::DescriptorSetLayout(device, layoutInfo);
 		}
 
-		void createIndexBuffer()
-		{
-			vk::DeviceSize bufferSize = sizeof(indices[0]) * indices.size();
-
-			vk::raii::Buffer stagingBuffer({});
-			vk::raii::DeviceMemory stagingBufferMemory({});
-			createBuffer(bufferSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, stagingBuffer, stagingBufferMemory);
-
-			void* data = stagingBufferMemory.mapMemory(0, bufferSize);
-			memcpy(data, indices.data(), (size_t) bufferSize);
-			stagingBufferMemory.unmapMemory();
-
-			createBuffer(bufferSize, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal, indexBuffer, iBufferMemory);
-
-			copyBuffer(stagingBuffer, indexBuffer, bufferSize);
-		}
+		// void createIndexBuffer()
+		// {
+		// 	vk::DeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+		//
+		// 	vk::raii::Buffer stagingBuffer({});
+		// 	vk::raii::DeviceMemory stagingBufferMemory({});
+		// 	createBuffer(bufferSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, stagingBuffer, stagingBufferMemory);
+		//
+		// 	void* data = stagingBufferMemory.mapMemory(0, bufferSize);
+		// 	memcpy(data, indices.data(), (size_t) bufferSize);
+		// 	stagingBufferMemory.unmapMemory();
+		//
+		// 	createBuffer(bufferSize, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal, indexBuffer, iBufferMemory);
+		//
+		// 	copyBuffer(stagingBuffer, indexBuffer, bufferSize);
+		// }
 
 		void copyBuffer(vk::raii::Buffer &srcBuf, vk::raii::Buffer &dstBuf, vk::DeviceSize size)
 		{
@@ -595,22 +645,22 @@ class App
 			throw std::runtime_error("failed to find suitable memory type!");
 		}
 
-		void createVertexBuffer()
-		{
-			vk::DeviceSize bufSize = sizeof(vertices[0]) * vertices.size();
-			vk::raii::Buffer       stagingBuffer({});
-			vk::raii::DeviceMemory stagingBufferMemory({});
-			createBuffer(bufSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, stagingBuffer, stagingBufferMemory);
-
-			void *dataStaging = stagingBufferMemory.mapMemory(0, bufSize);
-			memcpy(dataStaging, vertices.data(), bufSize);
-			stagingBufferMemory.unmapMemory();
-
-			createBuffer(bufSize, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eDeviceLocal,
-					vertexBuffer, vBufferMemory);
-
-			copyBuffer(stagingBuffer, vertexBuffer, bufSize);
-		}
+		// void createVertexBuffer()
+		// {
+		// 	vk::DeviceSize bufSize = sizeof(vertices[0]) * vertices.size();
+		// 	vk::raii::Buffer       stagingBuffer({});
+		// 	vk::raii::DeviceMemory stagingBufferMemory({});
+		// 	createBuffer(bufSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, stagingBuffer, stagingBufferMemory);
+		//
+		// 	void *dataStaging = stagingBufferMemory.mapMemory(0, bufSize);
+		// 	memcpy(dataStaging, vertices.data(), bufSize);
+		// 	stagingBufferMemory.unmapMemory();
+		//
+		// 	createBuffer(bufSize, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eDeviceLocal,
+		// 			vertexBuffer, vBufferMemory);
+		//
+		// 	copyBuffer(stagingBuffer, vertexBuffer, bufSize);
+		// }
 
 		void cleanupSwapchain()
 		{
@@ -811,13 +861,13 @@ class App
 			cmdBuffers[frameIndex].setViewport(0, vk::Viewport(0,0,swapChainExtent.width, swapChainExtent.height, 0, 1));
 			cmdBuffers[frameIndex].setScissor(0, vk::Rect2D(vk::Offset2D(0,0), swapChainExtent));
 
-			cmdBuffers[frameIndex].bindVertexBuffers(0, *vertexBuffer, {0});
-			cmdBuffers[frameIndex].bindIndexBuffer(*indexBuffer, 0, vk::IndexType::eUint32);
 
 			for(auto &object : objects)
 			{
+				cmdBuffers[frameIndex].bindVertexBuffers(0, *(object.mesh.vertexBuffer), {0});
+				cmdBuffers[frameIndex].bindIndexBuffer(*(object.mesh.indexBuffer), 0, vk::IndexType::eUint32);
 				cmdBuffers[frameIndex].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, *object.descriptorSets[frameIndex], nullptr);
-				cmdBuffers[frameIndex].drawIndexed(indices.size(), 1, 0, 0, 0);
+				cmdBuffers[frameIndex].drawIndexed(object.mesh.indices.size(), 1, 0, 0, 0);
 			}
 
 			cmdBuffers[frameIndex].endRendering();
