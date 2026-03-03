@@ -599,23 +599,6 @@ class App
 			descSetLayout = vk::raii::DescriptorSetLayout(device, layoutInfo);
 		}
 
-		// void createIndexBuffer()
-		// {
-		// 	vk::DeviceSize bufferSize = sizeof(indices[0]) * indices.size();
-		//
-		// 	vk::raii::Buffer stagingBuffer({});
-		// 	vk::raii::DeviceMemory stagingBufferMemory({});
-		// 	createBuffer(bufferSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, stagingBuffer, stagingBufferMemory);
-		//
-		// 	void* data = stagingBufferMemory.mapMemory(0, bufferSize);
-		// 	memcpy(data, indices.data(), (size_t) bufferSize);
-		// 	stagingBufferMemory.unmapMemory();
-		//
-		// 	createBuffer(bufferSize, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal, indexBuffer, iBufferMemory);
-		//
-		// 	copyBuffer(stagingBuffer, indexBuffer, bufferSize);
-		// }
-
 		void copyBuffer(vk::raii::Buffer &srcBuf, vk::raii::Buffer &dstBuf, vk::DeviceSize size)
 		{
 			auto commandCopyBuffer = beginSingleTimeCommands();
@@ -644,23 +627,6 @@ class App
 
 			throw std::runtime_error("failed to find suitable memory type!");
 		}
-
-		// void createVertexBuffer()
-		// {
-		// 	vk::DeviceSize bufSize = sizeof(vertices[0]) * vertices.size();
-		// 	vk::raii::Buffer       stagingBuffer({});
-		// 	vk::raii::DeviceMemory stagingBufferMemory({});
-		// 	createBuffer(bufSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, stagingBuffer, stagingBufferMemory);
-		//
-		// 	void *dataStaging = stagingBufferMemory.mapMemory(0, bufSize);
-		// 	memcpy(dataStaging, vertices.data(), bufSize);
-		// 	stagingBufferMemory.unmapMemory();
-		//
-		// 	createBuffer(bufSize, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eDeviceLocal,
-		// 			vertexBuffer, vBufferMemory);
-		//
-		// 	copyBuffer(stagingBuffer, vertexBuffer, bufSize);
-		// }
 
 		void cleanupSwapchain()
 		{
