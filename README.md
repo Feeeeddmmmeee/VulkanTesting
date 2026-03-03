@@ -8,11 +8,9 @@ This is a repostitory mostly intended for private use and reference by me when w
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/d8a174d2-e5a0-4eaf-adaf-d62c11f065e3" />
 
 <br>
-<br>
 
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/74af359a-619d-48e1-9bf4-795300167bca" />
 
-<br>
 <br>
 
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/8652d246-7a1b-441a-b40e-6dcdc2864184" />
