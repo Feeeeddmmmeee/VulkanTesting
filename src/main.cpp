@@ -92,14 +92,12 @@ const std::vector<const char*> deviceExtensions = {
 
 struct MeshData
 {
-		// These 2 vectors probably dont have to be stored
-		std::vector<Vertex> vertices;
-		std::vector<uint32_t> indices;
-
 		vk::raii::Buffer vertexBuffer = nullptr;
 		vk::raii::DeviceMemory vBufferMemory = nullptr;
 		vk::raii::Buffer indexBuffer = nullptr;
 		vk::raii::DeviceMemory iBufferMemory = nullptr;
+
+		uint32_t vertexCount = 0;
 };
 
 struct Object 
@@ -213,9 +211,9 @@ class App
 			createSyncObjects();
 		}
 
-		void createMeshIndexBuffer(MeshData &mesh)
+		void createMeshIndexBuffer(MeshData &mesh, std::vector<uint32_t> &indices)
 		{
-			vk::DeviceSize bufferSize = sizeof(mesh.indices[0]) * mesh.indices.size();
+			vk::DeviceSize bufferSize = sizeof(indices[0]) * indices.size();
 
 			vk::raii::Buffer stagingBuffer({});
 			vk::raii::DeviceMemory stagingBufferMemory({});
@@ -223,7 +221,7 @@ class App
 					vk::MemoryPropertyFlagBits::eHostCoherent, stagingBuffer, stagingBufferMemory);
 
 			void* data = stagingBufferMemory.mapMemory(0, bufferSize);
-			memcpy(data, mesh.indices.data(), (size_t) bufferSize);
+			memcpy(data, indices.data(), (size_t) bufferSize);
 			stagingBufferMemory.unmapMemory();
 
 			createBuffer(bufferSize, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
@@ -232,9 +230,9 @@ class App
 			copyBuffer(stagingBuffer, mesh.indexBuffer, bufferSize);
 		}
 
-		void createMeshVertexBuffer(MeshData &mesh)
+		void createMeshVertexBuffer(MeshData &mesh, std::vector<Vertex> &vertices)
 		{
-			vk::DeviceSize bufSize = sizeof(mesh.vertices[0]) * mesh.vertices.size();
+			vk::DeviceSize bufSize = sizeof(vertices[0]) * vertices.size();
 
 			vk::raii::Buffer       stagingBuffer({});
 			vk::raii::DeviceMemory stagingBufferMemory({});
@@ -242,7 +240,7 @@ class App
 					vk::MemoryPropertyFlagBits::eHostCoherent, stagingBuffer, stagingBufferMemory);
 
 			void *dataStaging = stagingBufferMemory.mapMemory(0, bufSize);
-			memcpy(dataStaging, mesh.vertices.data(), bufSize);
+			memcpy(dataStaging, vertices.data(), bufSize);
 			stagingBufferMemory.unmapMemory();
 
 			createBuffer(bufSize, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst,
@@ -255,27 +253,23 @@ class App
 		{
 			objects[0].pos= {1, -1, .5};
 			objects[0].scale = {.5,.5,.5};
-			loadModel(objects[0].mesh.vertices, objects[0].mesh.indices, MODEL_PATH);
-			createMeshVertexBuffer(objects[0].mesh);
-			createMeshIndexBuffer(objects[0].mesh);
+			loadModel(objects[0].mesh, MODEL_PATH);
 			
-			loadModel(objects[1].mesh.vertices, objects[1].mesh.indices, "models/dragon.obj");
-			createMeshVertexBuffer(objects[1].mesh);
-			createMeshIndexBuffer(objects[1].mesh);
+			loadModel(objects[1].mesh, "models/dragon.obj");
 
 			objects[2].pos = {-1,1,.5};
 			objects[2].scale = {.5,.5,.5};
-			loadModel(objects[2].mesh.vertices, objects[2].mesh.indices, MODEL_PATH);
-			createMeshVertexBuffer(objects[2].mesh);
-			createMeshIndexBuffer(objects[2].mesh);
+			loadModel(objects[2].mesh, MODEL_PATH);
 		}
 
-		void loadModel(std::vector<Vertex> &vertices, std::vector<uint32_t> &indices, const char *path)
+		void loadModel(MeshData &mesh, const char *path)
 		{
 			tinyobj::attrib_t attrib;
 			std::vector<tinyobj::shape_t> shapes;
 			std::vector<tinyobj::material_t> materials;
 			std::string warn, err;
+			std::vector<Vertex> vertices;
+			std::vector<uint32_t> indices;
 
 			if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, path)) {
 				throw std::runtime_error(warn + err);
@@ -310,6 +304,10 @@ class App
 					indices.push_back(uniqueVerts[vertex]);
 				}
 			}
+
+			mesh.vertexCount = indices.size();
+			createMeshVertexBuffer(mesh, vertices);
+			createMeshIndexBuffer(mesh, indices);
 		}
 
 		bool hasStencilComponent(vk::Format format) {
@@ -835,7 +833,7 @@ class App
 				cmdBuffers[frameIndex].bindVertexBuffers(0, *(object.mesh.vertexBuffer), {0});
 				cmdBuffers[frameIndex].bindIndexBuffer(*(object.mesh.indexBuffer), 0, vk::IndexType::eUint32);
 				cmdBuffers[frameIndex].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, *object.descriptorSets[frameIndex], nullptr);
-				cmdBuffers[frameIndex].drawIndexed(object.mesh.indices.size(), 1, 0, 0, 0);
+				cmdBuffers[frameIndex].drawIndexed(object.mesh.vertexCount, 1, 0, 0, 0);
 			}
 
 			cmdBuffers[frameIndex].endRendering();
