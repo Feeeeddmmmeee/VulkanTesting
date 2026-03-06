@@ -127,6 +127,34 @@ struct Object
     }
 };
 
+struct VulkanShader
+{
+	vk::raii::ShaderModule module=nullptr;
+
+	VulkanShader(std::string path, const vk::raii::Device &device)
+	{
+		auto shaderBin = readFile(path);
+		vk::ShaderModuleCreateInfo info{
+			.codeSize = shaderBin.size() * sizeof(char),
+				.pCode = (uint32_t*)shaderBin.data()
+		};
+		module = vk::raii::ShaderModule{device, info};
+	}
+
+	static std::vector<char> readFile(const std::string &filename)
+	{
+		std::ifstream file(filename, std::ios::ate | std::ios::binary);
+		if(!file.is_open())
+			throw std::runtime_error("Failed to open file!");
+
+		std::vector<char> buffer(file.tellg()); // ate => we start at the end of file and thus we know its size
+		file.seekg(0, std::ios::beg);
+		file.read(buffer.data(), buffer.size());
+		file.close();
+		return buffer;
+	}
+};
+
 class App
 {
 	public:
@@ -871,17 +899,15 @@ class App
 
 		void createPipeline()
 		{
-			auto shaderBin = readFile(SHADER_PATH);
-			LOG("Shader size: "<<shaderBin.size()<<"B")
-			auto shaderModule = createShaderModule(shaderBin);
+			VulkanShader shader(SHADER_PATH, device);
 			vk::PipelineShaderStageCreateInfo vertInfo{
 				.stage = vk::ShaderStageFlagBits::eVertex,
-					.module = shaderModule,
+					.module = shader.module,
 					.pName = "vertMain"
 			};
 			vk::PipelineShaderStageCreateInfo fragInfo{
 				.stage = vk::ShaderStageFlagBits::eFragment,
-					.module = shaderModule,
+					.module = shader.module,
 					.pName = "fragMain"
 			};
 			vk::PipelineShaderStageCreateInfo shaderStages[] = {vertInfo, fragInfo};
@@ -960,29 +986,6 @@ class App
 			};
 
 			graphicsPipeline = vk::raii::Pipeline(device, nullptr, pipelineInfo);
-		}
-
-		[[nodiscard]] vk::raii::ShaderModule createShaderModule(const std::vector<char> &bytes) const
-		{
-			vk::ShaderModuleCreateInfo info{
-				.codeSize = bytes.size() * sizeof(char),
-					.pCode = (uint32_t*)bytes.data()
-			};
-			vk::raii::ShaderModule shaderModule{device, info};
-			return shaderModule;
-		}
-
-		static std::vector<char> readFile(const std::string &filename)
-		{
-			std::ifstream file(filename, std::ios::ate | std::ios::binary);
-			if(!file.is_open())
-				throw std::runtime_error("Failed to open file!");
-
-			std::vector<char> buffer(file.tellg()); // ate => we start at the end of file and thus we know its size
-			file.seekg(0, std::ios::beg);
-			file.read(buffer.data(), buffer.size());
-			file.close();
-			return buffer;
 		}
 
 		void createImageViews()
