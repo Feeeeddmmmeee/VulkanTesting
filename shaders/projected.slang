@@ -21,7 +21,7 @@ VSOutput vertMain(VSInput input)
 {
 	VSOutput out;
 	out.pos = mul(ubo.proj, mul(ubo.view ,mul(ubo.model, float4(input.inPos, 1.0))));
-	out.color = input.inPos;
+	out.color = (0.75f * input.inPos) + 0.15f;
 	return out;
 }
 
