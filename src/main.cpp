@@ -3,6 +3,9 @@
 #include <vulkan/vulkan_raii.hpp>
 
 #include "Window.h"
+#include "Shader.h"
+#include "Pipeline.h"
+#include "Vertex.h"
 
 #define GLM_ENABLE_EXPERIMENTAL
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
@@ -18,12 +21,10 @@
 #include <tiny_obj_loader.h>
 
 #include <iostream>
-#include <fstream>
 #include <algorithm>
 #include <limits>
 #include <array>
 #include <chrono>
-#include <unordered_map>
 
 #define LOG(x) std::cout<<x<<std::endl;
 
@@ -41,39 +42,6 @@ constexpr uint32_t MAX_OBJECTS = 3;
 constexpr const char* SHADER_PATH = "shaders/texture.spv";
 constexpr const char* TEXTURE_PATH = "textures/viking_room.png";
 constexpr const char* MODEL_PATH = "models/viking_room.obj";
-
-struct Vertex
-{
-	glm::vec3 pos;
-	glm::vec3 color;
-	glm::vec2 texCoord;
-
-	static vk::VertexInputBindingDescription getBindingDesc()
-	{
-		return {0, sizeof(Vertex), vk::VertexInputRate::eVertex};
-	}
-	static std::array<vk::VertexInputAttributeDescription, 3> getAttributeDescs()
-	{
-		return {
-			vk::VertexInputAttributeDescription(0, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, pos)),
-				vk::VertexInputAttributeDescription(1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color)),
-				vk::VertexInputAttributeDescription(2, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, texCoord))
-		};
-	}
-	bool operator==(const Vertex& other) const {
-		return pos == other.pos && color == other.color && texCoord == other.texCoord;
-	}
-};
-
-namespace std {
-    template<> struct hash<Vertex> {
-        size_t operator()(Vertex const& vertex) const {
-            return ((hash<glm::vec3>()(vertex.pos) ^
-                   (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^
-                   (hash<glm::vec2>()(vertex.texCoord) << 1);
-        }
-    };
-}
 
 struct UniformBufferObject
 {
@@ -107,6 +75,7 @@ struct Object
 	glm::vec3 scale = {1,1,1};
 
 	MeshData mesh;
+	Material mat;
 
 	// one for each frame in flight
 	std::vector<vk::raii::Buffer> uniformBuffers;
@@ -125,34 +94,6 @@ struct Object
         model = glm::scale(model, scale);
         return model;
     }
-};
-
-struct VulkanShader
-{
-	vk::raii::ShaderModule module=nullptr;
-
-	VulkanShader(std::string path, const vk::raii::Device &device)
-	{
-		auto shaderBin = readFile(path);
-		vk::ShaderModuleCreateInfo info{
-			.codeSize = shaderBin.size() * sizeof(char),
-				.pCode = (uint32_t*)shaderBin.data()
-		};
-		module = vk::raii::ShaderModule{device, info};
-	}
-
-	static std::vector<char> readFile(const std::string &filename)
-	{
-		std::ifstream file(filename, std::ios::ate | std::ios::binary);
-		if(!file.is_open())
-			throw std::runtime_error("Failed to open file!");
-
-		std::vector<char> buffer(file.tellg()); // ate => we start at the end of file and thus we know its size
-		file.seekg(0, std::ios::beg);
-		file.read(buffer.data(), buffer.size());
-		file.close();
-		return buffer;
-	}
 };
 
 struct Camera
@@ -215,8 +156,6 @@ class App
 		std::vector<vk::raii::ImageView> swapChainImageViews;
 
 		vk::raii::DescriptorSetLayout descSetLayout = nullptr;
-		vk::raii::PipelineLayout pipelineLayout = nullptr;
-		vk::raii::Pipeline graphicsPipeline = nullptr;
 
 		vk::raii::DescriptorPool descPool = nullptr;
 		std::array<Object, MAX_OBJECTS> objects;
@@ -241,6 +180,7 @@ class App
 
 		std::unique_ptr<Window> window;
 		std::unique_ptr<Camera> camera;
+		std::unique_ptr<PipelineManager> pipelineManager;
 
 		void initVulkan()
 		{
@@ -252,7 +192,7 @@ class App
 			createSwapChain();
 			createImageViews();
 			createDescSetLayout();
-			createPipeline();
+			setupPipelineManager();
 			createCommandPool();
 			createDepthResources();
 			createTextureImage();
@@ -265,6 +205,16 @@ class App
 			createDescSets();
 			createCommandBuffers();
 			createSyncObjects();
+		}
+
+		void setupPipelineManager()
+		{
+			this->pipelineManager = std::make_unique<PipelineManager>(
+					device,
+					descSetLayout,
+					findDepthFormat(),
+					swapChainSurfaceFormat
+			);
 		}
 
 		void updateCamera()
@@ -321,15 +271,34 @@ class App
 			objects[0].pos= {1, -1, .5};
 			objects[0].scale = {.5,.5,.5};
 			loadModel(objects[0].mesh, MODEL_PATH);
+			objects[0].mat.setPipeline(pipelineManager->get({
+						.vertMain="vertMain",
+						.fragMain="fragMain",
+						.vert=SHADER_PATH,
+						.frag=SHADER_PATH
+					}));
 			
-			loadModel(objects[1].mesh, "models/dragon.obj");
+			loadModel(objects[1].mesh, "models/dragon.obj", true, true);
+			objects[1].scale = {1.5,1.5,1.5};
+			objects[1].mat.setPipeline(pipelineManager->get({
+						.vertMain="vertMain",
+						.fragMain="fragMain",
+						.vert="shaders/projected.spv",
+						.frag="shaders/projected.spv"
+					}));
 
 			objects[2].pos = {-1,1,.5};
 			objects[2].scale = {.5,.5,.5};
 			loadModel(objects[2].mesh, MODEL_PATH);
+			objects[2].mat.setPipeline(pipelineManager->get({
+						.vertMain="vertMain",
+						.fragMain="fragMain",
+						.vert=SHADER_PATH,
+						.frag=SHADER_PATH
+					}));
 		}
 
-		void loadModel(MeshData &mesh, const char *path)
+		void loadModel(MeshData &mesh, const char *path, bool swapYZ = false, bool flipTriangles = false)
 		{
 			LOG("Loading model: "<<path<<"...")
 			tinyobj::attrib_t attrib;
@@ -349,11 +318,22 @@ class App
 				for (const auto& index : shape.mesh.indices) {
 					Vertex vertex{};
 
-					vertex.pos = {
-						attrib.vertices[3 * index.vertex_index + 0],
-						attrib.vertices[3 * index.vertex_index + 1],
-						attrib.vertices[3 * index.vertex_index + 2]
-					};
+					if(swapYZ)
+					{
+						vertex.pos = {
+							attrib.vertices[3 * index.vertex_index + 0],
+							attrib.vertices[3 * index.vertex_index + 2],
+							attrib.vertices[3 * index.vertex_index + 1]
+						};
+					}
+					else
+					{
+						vertex.pos = {
+							attrib.vertices[3 * index.vertex_index + 0],
+							attrib.vertices[3 * index.vertex_index + 1],
+							attrib.vertices[3 * index.vertex_index + 2]
+						};
+					}
 
 					if(attrib.texcoords.size())
 					{
@@ -371,6 +351,12 @@ class App
 					}
 					indices.push_back(uniqueVerts[vertex]);
 				}
+			}
+
+			if(flipTriangles)
+			{
+				for(int i = 0; i < indices.size(); i+=3)
+					std::swap(indices[i+1], indices[i+2]);
 			}
 
 			mesh.vertexCount = indices.size();
@@ -886,18 +872,18 @@ class App
 			};
 
 			cmdBuffers[frameIndex].beginRendering(renderInfo);
-			cmdBuffers[frameIndex].bindPipeline(vk::PipelineBindPoint::eGraphics,*graphicsPipeline);
-			
-			// viewport + scissor are dynamic so we specify them now
-			cmdBuffers[frameIndex].setViewport(0, vk::Viewport(0,0,swapChainExtent.width, swapChainExtent.height, 0, 1));
-			cmdBuffers[frameIndex].setScissor(0, vk::Rect2D(vk::Offset2D(0,0), swapChainExtent));
-
 
 			for(auto &object : objects)
 			{
+				auto pipeline = object.mat.pipeline.get();
+				cmdBuffers[frameIndex].bindPipeline(vk::PipelineBindPoint::eGraphics,*pipeline->pipeline);
+				
+				// viewport + scissor are dynamic so we specify them now
+				cmdBuffers[frameIndex].setViewport(0, vk::Viewport(0,0,swapChainExtent.width, swapChainExtent.height, 0, 1));
+				cmdBuffers[frameIndex].setScissor(0, vk::Rect2D(vk::Offset2D(0,0), swapChainExtent));
 				cmdBuffers[frameIndex].bindVertexBuffers(0, *(object.mesh.vertexBuffer), {0});
 				cmdBuffers[frameIndex].bindIndexBuffer(*(object.mesh.indexBuffer), 0, vk::IndexType::eUint32);
-				cmdBuffers[frameIndex].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipelineLayout, 0, *object.descriptorSets[frameIndex], nullptr);
+				cmdBuffers[frameIndex].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->layout, 0, *object.descriptorSets[frameIndex], nullptr);
 				cmdBuffers[frameIndex].drawIndexed(object.mesh.vertexCount, 1, 0, 0, 0);
 			}
 
@@ -932,97 +918,6 @@ class App
 					.queueFamilyIndex = graphicsQueueIndex
 			};
 			commandPool = vk::raii::CommandPool(device, poolInfo);
-		}
-
-		void createPipeline()
-		{
-			VulkanShader shader(SHADER_PATH, device);
-			vk::PipelineShaderStageCreateInfo vertInfo{
-				.stage = vk::ShaderStageFlagBits::eVertex,
-					.module = shader.module,
-					.pName = "vertMain"
-			};
-			vk::PipelineShaderStageCreateInfo fragInfo{
-				.stage = vk::ShaderStageFlagBits::eFragment,
-					.module = shader.module,
-					.pName = "fragMain"
-			};
-			vk::PipelineShaderStageCreateInfo shaderStages[] = {vertInfo, fragInfo};
-
-			auto bindingDescription = Vertex::getBindingDesc();
-			auto attrDescriptions = Vertex::getAttributeDescs();
-			vk::PipelineVertexInputStateCreateInfo vertInputInfo{
-				.vertexBindingDescriptionCount=1,
-					.pVertexBindingDescriptions=&bindingDescription,
-					.vertexAttributeDescriptionCount=attrDescriptions.size(),
-					.pVertexAttributeDescriptions=attrDescriptions.data()
-			};
-
-			vk::PipelineInputAssemblyStateCreateInfo inputAssembly{.topology=vk::PrimitiveTopology::eTriangleList};
-			vk::PipelineViewportStateCreateInfo viewportState{.viewportCount = 1, .scissorCount = 1};
-			std::vector dynamicStates = {
-				vk::DynamicState::eViewport,
-				vk::DynamicState::eScissor
-			};
-			vk::PipelineDynamicStateCreateInfo dynamicState{
-				.dynamicStateCount = (uint32_t)dynamicStates.size(),
-					.pDynamicStates = dynamicStates.data()
-			};
-
-			vk::PipelineRasterizationStateCreateInfo rasterizer{
-				.depthClampEnable = vk::False,
-					.rasterizerDiscardEnable = vk::False,
-					.polygonMode = vk::PolygonMode::eFill,
-					.cullMode = vk::CullModeFlagBits::eBack,
-					.frontFace = vk::FrontFace::eCounterClockwise,
-					.depthBiasEnable = vk::False,
-					.depthBiasSlopeFactor = 1.0f,
-					.lineWidth = 1.0f
-			};
-
-			vk::PipelineMultisampleStateCreateInfo multisampling{.rasterizationSamples=vk::SampleCountFlagBits::e1,.sampleShadingEnable=vk::False};
-			vk::PipelineColorBlendAttachmentState colorBlendAttachment{
-				.blendEnable    = vk::True,
-					.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA
-			};
-
-			// Alpha blending
-			colorBlendAttachment.blendEnable = vk::True;
-			colorBlendAttachment.srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
-			colorBlendAttachment.dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
-			colorBlendAttachment.colorBlendOp = vk::BlendOp::eAdd;
-			colorBlendAttachment.srcAlphaBlendFactor = vk::BlendFactor::eOne;
-			colorBlendAttachment.dstAlphaBlendFactor = vk::BlendFactor::eZero;
-			colorBlendAttachment.alphaBlendOp = vk::BlendOp::eAdd;
-			vk::PipelineColorBlendStateCreateInfo colorBlending{.logicOpEnable = vk::False, .logicOp =  vk::LogicOp::eCopy, .attachmentCount = 1, .pAttachments =  &colorBlendAttachment };
-
-			vk::PipelineLayoutCreateInfo pipelineLayoutInfo{.setLayoutCount=1,
-				.pSetLayouts=&*descSetLayout,			
-				.pushConstantRangeCount=0
-			};
-			pipelineLayout = vk::raii::PipelineLayout(device, pipelineLayoutInfo);
-
-			vk::PipelineRenderingCreateInfo renderingCreateInfo{.colorAttachmentCount=1,.pColorAttachmentFormats=&swapChainSurfaceFormat.format, .depthAttachmentFormat=findDepthFormat()};
-			vk::PipelineDepthStencilStateCreateInfo depthStencil{
-				.depthTestEnable       = vk::True,
-					.depthWriteEnable      = vk::True,
-					.depthCompareOp        = vk::CompareOp::eLess,
-					.depthBoundsTestEnable = vk::False,
-					.stencilTestEnable     = vk::False
-			};
-
-			vk::GraphicsPipelineCreateInfo pipelineInfo{
-				.pNext = &renderingCreateInfo,
-				.stageCount = 2, .pStages = shaderStages,
-				.pVertexInputState = &vertInputInfo, .pInputAssemblyState = &inputAssembly,
-				.pViewportState = &viewportState, .pRasterizationState = &rasterizer,
-				.pMultisampleState = &multisampling,
-				.pDepthStencilState = &depthStencil, .pColorBlendState = &colorBlending,
-				.pDynamicState = &dynamicState, .layout = pipelineLayout, 
-				.renderPass = nullptr,
-			};
-
-			graphicsPipeline = vk::raii::Pipeline(device, nullptr, pipelineInfo);
 		}
 
 		void createImageViews()
