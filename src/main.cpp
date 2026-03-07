@@ -155,6 +155,32 @@ struct VulkanShader
 	}
 };
 
+struct Camera
+{
+	float fov;
+	glm::vec3 pos;
+	float near, far;
+	float width, height;
+	
+	Camera(float w, float h, float fov=45.0f, glm::vec3 pos={2,2,2}, float near=.1f, float far=10.0f) : 
+		width(w), height(h), fov(fov), pos(pos), near(near), far(far) {}
+
+	glm::mat4 getProjMatrix()
+	{
+		glm::mat4 proj = glm::perspective(glm::radians(fov), width/height, near, far);
+		proj[1][1] *= -1; // otherwise it would be upside down
+
+		return proj;
+	}
+
+	glm::mat4 getViewMatrix()
+	{
+		glm::mat4 view = lookAt(pos, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+
+		return view;
+	}
+};
+
 class App
 {
 	public:
@@ -214,6 +240,7 @@ class App
 		bool frameBufferResized = false;
 
 		std::unique_ptr<Window> window;
+		std::unique_ptr<Camera> camera;
 
 		void initVulkan()
 		{
@@ -231,12 +258,24 @@ class App
 			createTextureImage();
 			createTextureImageView();
 			createTextureSampler();
+			setupCamera();
 			setupObjects();
 			createUniformBuffers();
 			createDescPool();
 			createDescSets();
 			createCommandBuffers();
 			createSyncObjects();
+		}
+
+		void updateCamera()
+		{
+			camera->height = swapChainExtent.height;
+			camera->width = swapChainExtent.width;
+		}
+
+		void setupCamera()
+		{
+			camera = std::make_unique<Camera>(swapChainExtent.width, swapChainExtent.height);
 		}
 
 		void createMeshIndexBuffer(MeshData &mesh, std::vector<uint32_t> &indices)
@@ -575,17 +614,13 @@ class App
 			auto currentTime = std::chrono::high_resolution_clock::now();
 			float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 			
-			auto view = lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-			auto proj = glm::perspective(glm::radians(45.0f), static_cast<float>(swapChainExtent.width) / static_cast<float>(swapChainExtent.height), 0.1f, 10.0f);
-			proj[1][1] *= -1; // otherwise it would be upside down
-			
 			for(auto &object : objects)
 			{
 				object.rotation.z += 0.00005f;
 				UniformBufferObject ubo {
 					.model = object.getModelMatrix(),
-					.view = view,
-						.proj = proj
+					.view = camera->getViewMatrix(),
+						.proj = camera->getProjMatrix()
 				};
 				memcpy(object.uBuffersMapped[currentImage], &ubo, sizeof(ubo));
 			}
@@ -678,6 +713,7 @@ class App
 			createSwapChain();
 			createImageViews();
 			createDepthResources();
+			updateCamera();
 		}
 
 		void drawFrame()
