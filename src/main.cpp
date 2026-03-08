@@ -207,6 +207,10 @@ class App
 
 		void generateMipMaps(vk::raii::Image &image, vk::Format format, uint32_t w, uint32_t h, uint32_t mipLevels)
 		{
+			vk::FormatProperties formatProperties = pDevice.getFormatProperties(format);
+			if (!(formatProperties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eSampledImageFilterLinear))
+				throw std::runtime_error("Texture image format does not support linear blitting!");
+
 			auto cmdBuffer = beginSingleTimeCommands();
 			vk::ImageMemoryBarrier barrier{.srcAccessMask = vk::AccessFlagBits::eTransferWrite,
 				.dstAccessMask=vk::AccessFlagBits::eTransferRead, .oldLayout=vk::ImageLayout::eTransferDstOptimal,
@@ -221,8 +225,43 @@ class App
 			auto mipW = w, mipH = h;
 			for(uint32_t i = 1; i < mipLevels; ++i)
 			{
+				barrier.subresourceRange.baseMipLevel = i - 1;
+				barrier.oldLayout = vk::ImageLayout::eTransferDstOptimal;
+				barrier.newLayout = vk::ImageLayout::eTransferSrcOptimal;
+				barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
+				barrier.dstAccessMask = vk::AccessFlagBits::eTransferRead;
 
+				cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, barrier);
+
+				vk::ArrayWrapper1D<vk::Offset3D, 2> offsets, dstOffsets;
+				offsets[0] = vk::Offset3D(0, 0, 0);
+				offsets[1] = vk::Offset3D(mipW, mipH, 1);
+				dstOffsets[0] = vk::Offset3D(0, 0, 0);
+				dstOffsets[1] = vk::Offset3D(mipW > 1 ? mipW / 2 : 1, mipH > 1 ? mipH / 2 : 1, 1);
+				vk::ImageBlit blit = { .srcSubresource = {}, .srcOffsets = offsets,
+					.dstSubresource =  {}, .dstOffsets = dstOffsets };
+				blit.srcSubresource = vk::ImageSubresourceLayers( vk::ImageAspectFlagBits::eColor, i - 1, 0, 1);
+				blit.dstSubresource = vk::ImageSubresourceLayers( vk::ImageAspectFlagBits::eColor, i, 0, 1);
+
+				cmdBuffer.blitImage(image, vk::ImageLayout::eTransferSrcOptimal, image, vk::ImageLayout::eTransferDstOptimal, { blit }, vk::Filter::eLinear);
+
+				barrier.oldLayout = vk::ImageLayout::eTransferSrcOptimal;
+				barrier.newLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+				barrier.srcAccessMask = vk::AccessFlagBits::eTransferRead;
+				barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+
+				cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader, {}, {}, {}, barrier);
+				if (mipW > 1) mipW /= 2;
+				if (mipH > 1) mipH /= 2;
 			}
+
+			barrier.subresourceRange.baseMipLevel = mipLevels - 1;
+			barrier.oldLayout = vk::ImageLayout::eTransferDstOptimal;
+			barrier.newLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+			barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
+			barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+
+			cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader, {}, {}, {}, barrier);
 
 			endSingleTimeCommands(cmdBuffer);
 		}
@@ -436,6 +475,8 @@ class App
 					.maxAnisotropy    = properties.limits.maxSamplerAnisotropy,
 					.compareEnable    = vk::False,
 					.compareOp        = vk::CompareOp::eAlways,
+					.minLod = 0,
+					.maxLod = vk::LodClampNone,
 					.unnormalizedCoordinates = vk::False
 			};
 
@@ -566,7 +607,7 @@ class App
 
 			transitionLayout(textureImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, mipLevels);
 			copyBufferToImage(stagingBuffer, textureImage, tWidth, tHeight);
-			transitionLayout(textureImage, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, mipLevels);
+			generateMipMaps(textureImage, vk::Format::eR8G8B8A8Srgb, tWidth, tHeight, mipLevels);
 		}
 
 		void createDescSets()
