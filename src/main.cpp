@@ -39,7 +39,7 @@ constexpr bool _ENABLE_VALIDATION_LAYERS = false;
 constexpr uint32_t WIDTH = 800;
 constexpr uint32_t HEIGHT = 600;
 constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
-constexpr uint32_t MAX_OBJECTS = 3;
+constexpr uint32_t MAX_OBJECTS = 4;
 
 constexpr const char* TEXTURE_PATH = "textures/viking_room.png";
 
@@ -103,14 +103,18 @@ struct Camera
 	float near, far;
 	float width, height;
 
-	float yaw = -135.f, pitch = -35.f;
-	glm::vec3 front={-2,-2,-2}, worldUp={0,0,1};
+	float yaw, pitch;
+	glm::vec3 front, worldUp={0,0,1};
 	glm::vec3 right, up;
 	
-	Camera(float w, float h, float fov=45.0f, glm::vec3 pos={2,2,2}, float near=.1f, float far=10.0f) : 
-		width(w), height(h), fov(fov), pos(pos), near(near), far(far) {
+	Camera(float w, float h, float fov=45.0f, glm::vec3 pos={0,0,0}, glm::vec3 front={1,0,0}, float near=.01f, float far=100.0f) : 
+		width(w), height(h), fov(fov), pos(pos), near(near), far(far), front(front) {
+			front = glm::normalize(front);
 			right = glm::normalize(glm::cross(front, worldUp));
 			up = glm::normalize(glm::cross(right, front));
+
+			pitch = glm::degrees(glm::asin(front.z));
+			yaw = glm::degrees(atan2(front.y, front.x));
 		}
 
 	glm::mat4 getProjMatrix()
@@ -294,7 +298,7 @@ class App
 
 		void setupCamera()
 		{
-			camera = std::make_unique<Camera>(swapChainExtent.width, swapChainExtent.height);
+			camera = std::make_unique<Camera>(swapChainExtent.width, swapChainExtent.height, 45.0f, glm::vec3{-2.6f, 0.2f, 0.3f}, glm::vec3{0.9f, -0.1f, 0.2f});
 		}
 
 		void createMeshIndexBuffer(MeshData &mesh, std::vector<uint32_t> &indices)
@@ -337,7 +341,7 @@ class App
 
 		void setupObjects()
 		{
-			objects[0].pos= {1, -1, .5};
+			objects[0].pos= {0, -5, 0};
 			objects[0].scale = {.5,.5,.5};
 			loadModel(objects[0].mesh, "models/viking_room.obj");
 			objects[0].mat.setPipeline(pipelineManager->get({
@@ -347,16 +351,16 @@ class App
 						.frag="shaders/texture.spv"
 					}));
 			
-			loadModel(objects[1].mesh, "models/dragon.obj", true, true);
-			objects[1].scale = {1.5,1.5,1.5};
+			loadModel(objects[1].mesh, "models/sponza.obj", true, true);
+			objects[1].scale = {0.2,0.2,0.2};
 			objects[1].mat.setPipeline(pipelineManager->get({
 						.vertMain="vertMain",
 						.fragMain="fragMain",
-						.vert="shaders/projected.spv",
-						.frag="shaders/projected.spv"
+						.vert="shaders/uv.spv",
+						.frag="shaders/uv.spv"
 					}));
 
-			objects[2].pos = {-1,1,.5};
+			objects[2].pos = {0,5,0};
 			objects[2].scale = {.007,.007,.007};
 			loadModel(objects[2].mesh, "models/teapot.obj", true, true);
 			objects[2].mat.setPipeline(pipelineManager->get({
@@ -364,6 +368,16 @@ class App
 						.fragMain="fragMain",
 						.vert="shaders/uv.spv",
 						.frag="shaders/uv.spv"
+					}));
+
+			objects[3].pos = {0,7,0};
+			loadModel(objects[3].mesh, "models/dragon.obj", true, true);
+			objects[3].scale = {1.5,1.5,1.5};
+			objects[3].mat.setPipeline(pipelineManager->get({
+						.vertMain="vertMain",
+						.fragMain="fragMain",
+						.vert="shaders/projected.spv",
+						.frag="shaders/projected.spv"
 					}));
 		}
 
