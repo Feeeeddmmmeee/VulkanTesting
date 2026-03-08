@@ -3,6 +3,8 @@
 #include <string>
 #include <utility>
 
+#include <queue>
+
 #include <vulkan/vulkan.h>
 
 struct WindowSpec
@@ -25,6 +27,7 @@ class Window
 
 		static Window *create(const WindowSpec &spec);
 		static const char* const* getInstanceExtensions(uint32_t *count);
+		std::queue<std::pair<float,float>> forwarded;
 
 	protected:
 		WindowSpec spec;

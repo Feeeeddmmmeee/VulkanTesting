@@ -1,5 +1,7 @@
 #include "SDLWindow.h"
 
+#include <SDL3/SDL_events.h>
+#include <SDL3/SDL_mouse.h>
 #include <SDL3/SDL_vulkan.h>
 
 Window *Window::create(const WindowSpec &spec)
@@ -21,6 +23,7 @@ SDLWindow::SDLWindow(const WindowSpec &spec)
 	uint32_t flags = SDL_WINDOW_VULKAN|SDL_WINDOW_RESIZABLE;
 	
 	this->window = SDL_CreateWindow(spec.name.c_str(), spec.width, spec.height, flags);
+	SDL_SetWindowRelativeMouseMode(window, true);
 	this->running = 1;
 }
 
@@ -45,6 +48,9 @@ void SDLWindow::pollEvents()
 				*(this->spec.frameBufferResizeCallback) = true;
 				this->spec.width = event.window.data1;
 				this->spec.height = event.window.data2;
+				break;
+			case SDL_EVENT_MOUSE_MOTION:
+				forwarded.push(std::make_pair(event.motion.xrel, event.motion.yrel));
 				break;
 		}
 	}

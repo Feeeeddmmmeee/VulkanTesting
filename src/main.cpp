@@ -1,3 +1,5 @@
+#include <SDL3/SDL_mouse.h>
+#include <SDL3/SDL_oldnames.h>
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_raii.hpp>
@@ -26,6 +28,7 @@
 #include <chrono>
 
 #define LOG(x) std::cout<<x<<std::endl;
+#include <SDL3/SDL.h>
 
 #ifdef _DEBUG
 constexpr bool _ENABLE_VALIDATION_LAYERS = true;
@@ -99,9 +102,16 @@ struct Camera
 	glm::vec3 pos;
 	float near, far;
 	float width, height;
+
+	float yaw = -135.f, pitch = -35.f;
+	glm::vec3 front={-2,-2,-2}, worldUp={0,0,1};
+	glm::vec3 right, up;
 	
 	Camera(float w, float h, float fov=45.0f, glm::vec3 pos={2,2,2}, float near=.1f, float far=10.0f) : 
-		width(w), height(h), fov(fov), pos(pos), near(near), far(far) {}
+		width(w), height(h), fov(fov), pos(pos), near(near), far(far) {
+			right = glm::normalize(glm::cross(front, worldUp));
+			up = glm::normalize(glm::cross(right, front));
+		}
 
 	glm::mat4 getProjMatrix()
 	{
@@ -113,7 +123,7 @@ struct Camera
 
 	glm::mat4 getViewMatrix()
 	{
-		glm::mat4 view = lookAt(pos, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		glm::mat4 view = lookAt(pos, pos+front, up);
 
 		return view;
 	}
@@ -666,7 +676,7 @@ class App
 			
 			for(auto &object : objects)
 			{
-				object.rotation.z += 0.00005f;
+				// object.rotation.z += 0.00005f;
 				UniformBufferObject ubo {
 					.model = object.getModelMatrix(),
 					.view = camera->getViewMatrix(),
@@ -1299,8 +1309,52 @@ class App
 
 		void mainLoop()
 		{
+			SDL_HideCursor();
 			while(window->isRunning())
 			{
+				const bool *keys = SDL_GetKeyboardState(NULL);
+				// TEMPORARY workaround before moving to my engine which actually handles input events properly
+				float velocity = 0.0005f;
+				if(keys[SDL_SCANCODE_LSHIFT])
+				{
+					velocity = 0.001f;
+				}
+				if(keys[SDL_SCANCODE_W]){
+					camera->pos += velocity * camera->front;
+				}
+				if(keys[SDL_SCANCODE_S]){
+					camera->pos -= velocity * camera->front;
+				}
+				if(keys[SDL_SCANCODE_D]){
+					camera->pos += velocity * camera->right;
+				}
+				if(keys[SDL_SCANCODE_A]){
+					camera->pos -= velocity * camera->right;
+				}
+				if(keys[SDL_SCANCODE_SPACE]){
+					camera->pos += velocity * camera->up;
+				}
+				if(keys[SDL_SCANCODE_LCTRL]){
+					camera->pos -= velocity * camera->up;
+				}
+				while(!window->forwarded.empty())
+				{
+					auto [dx, dy] = window->forwarded.front();
+					camera->yaw   -= dx * .1f;
+					camera->pitch -= dy * .1f;
+
+					camera->pitch = glm::clamp(camera->pitch, -89.0f, 89.0f);
+
+					glm::vec3 f;
+					f.x = cos(glm::radians(camera->yaw)) * cos(glm::radians(camera->pitch));
+					f.y = sin(glm::radians(camera->yaw)) * cos(glm::radians(camera->pitch));
+					f.z = sin(glm::radians(camera->pitch));
+
+					camera->front = glm::normalize(f);
+					camera->right = glm::normalize(glm::cross(camera->front, camera->worldUp));
+					camera->up    = glm::normalize(glm::cross(camera->right, camera->front));
+					window->forwarded.pop();
+				}
 				window->pollEvents();
 				drawFrame();
 			}
