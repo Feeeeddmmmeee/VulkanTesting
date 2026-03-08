@@ -288,13 +288,13 @@ class App
 					}));
 
 			objects[2].pos = {-1,1,.5};
-			objects[2].scale = {.5,.5,.5};
-			loadModel(objects[2].mesh, MODEL_PATH);
+			objects[2].scale = {.007,.007,.007};
+			loadModel(objects[2].mesh, "models/teapot.obj", true, true);
 			objects[2].mat.setPipeline(pipelineManager->get({
 						.vertMain="vertMain",
 						.fragMain="fragMain",
-						.vert=SHADER_PATH,
-						.frag=SHADER_PATH
+						.vert="shaders/uv.spv",
+						.frag="shaders/uv.spv"
 					}));
 		}
 
