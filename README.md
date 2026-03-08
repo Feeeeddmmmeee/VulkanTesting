@@ -15,6 +15,10 @@ As the repo is only intended to be used as a reference it is purposefully not st
 
 <br>
 
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/107e4fff-8a38-45f2-a8f3-9eb3a49a171d" />
+
+<br>
+
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/8652d246-7a1b-441a-b40e-6dcdc2864184" />
 
 ## :sparkles: Setup and configuration
