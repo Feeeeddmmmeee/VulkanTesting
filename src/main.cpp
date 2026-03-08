@@ -39,9 +39,7 @@ constexpr uint32_t HEIGHT = 600;
 constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
 constexpr uint32_t MAX_OBJECTS = 3;
 
-constexpr const char* SHADER_PATH = "shaders/texture.spv";
 constexpr const char* TEXTURE_PATH = "textures/viking_room.png";
-constexpr const char* MODEL_PATH = "models/viking_room.obj";
 
 struct UniformBufferObject
 {
@@ -293,12 +291,12 @@ class App
 		{
 			objects[0].pos= {1, -1, .5};
 			objects[0].scale = {.5,.5,.5};
-			loadModel(objects[0].mesh, MODEL_PATH);
+			loadModel(objects[0].mesh, "models/viking_room.obj");
 			objects[0].mat.setPipeline(pipelineManager->get({
 						.vertMain="vertMain",
 						.fragMain="fragMain",
-						.vert=SHADER_PATH,
-						.frag=SHADER_PATH
+						.vert="shaders/texture.spv",
+						.frag="shaders/texture.spv"
 					}));
 			
 			loadModel(objects[1].mesh, "models/dragon.obj", true, true);
