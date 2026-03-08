@@ -3,7 +3,6 @@
 #include <vulkan/vulkan_raii.hpp>
 
 #include "Window.h"
-#include "Shader.h"
 #include "Pipeline.h"
 #include "Vertex.h"
 
