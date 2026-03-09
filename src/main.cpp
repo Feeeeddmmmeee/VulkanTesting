@@ -1,5 +1,3 @@
-#include <SDL3/SDL_mouse.h>
-#include <SDL3/SDL_oldnames.h>
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_raii.hpp>
@@ -1287,7 +1285,7 @@ class App
 		}
 
 		static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity, vk::DebugUtilsMessageTypeFlagsEXT type, const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
-			LOG("Validation layer: type " << to_string(type) << " Message: " << pCallbackData->pMessage)
+			LOG("Validation layer: type " << to_string(type) << "\n\tMessage: " << pCallbackData->pMessage)
 
 			return vk::False;
 		}
