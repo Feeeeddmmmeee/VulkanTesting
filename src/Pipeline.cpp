@@ -2,7 +2,7 @@
 #include "Shader.h"
 #include "Vertex.h"
 
-VulkanPipeline::VulkanPipeline(const vk::raii::Device &dev, const PipelineKey &key, const vk::SurfaceFormatKHR &surfaceFormat, vk::Format depthFormat, const vk::raii::DescriptorSetLayout &descSetLayout)
+VulkanPipeline::VulkanPipeline(const vk::raii::Device &dev, const PipelineKey &key, const vk::SurfaceFormatKHR &surfaceFormat, vk::Format depthFormat, const vk::raii::DescriptorSetLayout &descSetLayout, vk::SampleCountFlagBits msaaSamples)
 {
 	// modules should probably be cached at some point
 
@@ -51,7 +51,7 @@ VulkanPipeline::VulkanPipeline(const vk::raii::Device &dev, const PipelineKey &k
 			.lineWidth = 1.0f
 	};
 
-	vk::PipelineMultisampleStateCreateInfo multisampling{.rasterizationSamples=vk::SampleCountFlagBits::e1,.sampleShadingEnable=vk::False};
+	vk::PipelineMultisampleStateCreateInfo multisampling{.rasterizationSamples=msaaSamples,.sampleShadingEnable=vk::False};
 	vk::PipelineColorBlendAttachmentState colorBlendAttachment{
 		.blendEnable    = vk::True,
 			.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA
@@ -108,7 +108,7 @@ std::shared_ptr<VulkanPipeline> PipelineManager::get(const PipelineKey &key)
 	if(it != this->cache.end())
 		return it->second;
 
-	auto pipeline = std::make_shared<VulkanPipeline>(this->device, key, surfaceFormat, depthFormat, descSetLayout);
+	auto pipeline = std::make_shared<VulkanPipeline>(this->device, key, surfaceFormat, depthFormat, descSetLayout, msaaSamples);
 	this->cache[key] = pipeline;
 	return pipeline;
 }
