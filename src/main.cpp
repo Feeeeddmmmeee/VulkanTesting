@@ -1010,7 +1010,7 @@ class App
 
 			for(auto &object : objects)
 			{
-				auto pipeline = object.mat.pipeline.get();
+				auto pipeline = object.mat.pipeline;
 				cmdBuffers[frameIndex].bindPipeline(vk::PipelineBindPoint::eGraphics,*pipeline->pipeline);
 				
 				// viewport + scissor are dynamic so we specify them now
