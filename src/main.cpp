@@ -5,6 +5,7 @@
 #include "Window.h"
 #include "Pipeline.h"
 #include "Vertex.h"
+#include "Models.h"
 
 #define GLM_ENABLE_EXPERIMENTAL
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
@@ -57,24 +58,13 @@ const std::vector<const char*> deviceExtensions = {
     vk::KHRSwapchainExtensionName
 };
 
-struct MeshData
-{
-		vk::raii::Buffer vertexBuffer = nullptr;
-		vk::raii::DeviceMemory vBufferMemory = nullptr;
-		vk::raii::Buffer indexBuffer = nullptr;
-		vk::raii::DeviceMemory iBufferMemory = nullptr;
-
-		uint32_t vertexCount = 0;
-};
-
 struct Object 
 {
 	glm::vec3 pos = {0,0,0};
 	glm::vec3 rotation = {0,0,0};
 	glm::vec3 scale = {1,1,1};
 
-	MeshData mesh;
-	Material mat;
+	Model model;
 
 	// one for each frame in flight
 	std::vector<vk::raii::Buffer> uniformBuffers;
@@ -335,7 +325,7 @@ class App
 			camera = std::make_unique<Camera>(swapChainExtent.width, swapChainExtent.height, 45.0f, glm::vec3{-2.6f, 0.2f, 0.3f}, glm::vec3{0.9f, -0.1f, 0.2f});
 		}
 
-		void createMeshIndexBuffer(MeshData &mesh, std::vector<uint32_t> &indices)
+		void createMeshIndexBuffer(Mesh &mesh, std::vector<uint32_t> &indices)
 		{
 			vk::DeviceSize bufferSize = sizeof(indices[0]) * indices.size();
 
@@ -354,7 +344,7 @@ class App
 			copyBuffer(stagingBuffer, mesh.indexBuffer, bufferSize);
 		}
 
-		void createMeshVertexBuffer(MeshData &mesh, std::vector<Vertex> &vertices)
+		void createMeshVertexBuffer(Mesh &mesh, std::vector<Vertex> &vertices)
 		{
 			vk::DeviceSize bufSize = sizeof(vertices[0]) * vertices.size();
 
@@ -377,17 +367,17 @@ class App
 		{
 			objects[0].pos= {0, -5, 0};
 			objects[0].scale = {.5,.5,.5};
-			loadModel(objects[0].mesh, "models/viking_room.obj");
-			objects[0].mat.setPipeline(pipelineManager->get({
+			loadModel(objects[0].model, "models/viking_room.obj");
+			objects[0].model.meshes[0].material.setPipeline(pipelineManager->get({
 						.vertMain="vertMain",
 						.fragMain="fragMain",
 						.vert="shaders/texture.spv",
 						.frag="shaders/texture.spv"
 					}));
 			
-			loadModel(objects[1].mesh, "models/sponza.obj", true, true);
+			loadModel(objects[1].model, "models/sponza.obj", true, true);
 			objects[1].scale = {0.2,0.2,0.2};
-			objects[1].mat.setPipeline(pipelineManager->get({
+			objects[1].model.meshes[0].material.setPipeline(pipelineManager->get({
 						.vertMain="vertMain",
 						.fragMain="fragMain",
 						.vert="shaders/uv.spv",
@@ -396,8 +386,8 @@ class App
 
 			objects[2].pos = {0,5,0};
 			objects[2].scale = {.007,.007,.007};
-			loadModel(objects[2].mesh, "models/teapot.obj", true, true);
-			objects[2].mat.setPipeline(pipelineManager->get({
+			loadModel(objects[2].model, "models/teapot.obj", true, true);
+			objects[2].model.meshes[0].material.setPipeline(pipelineManager->get({
 						.vertMain="vertMain",
 						.fragMain="fragMain",
 						.vert="shaders/uv.spv",
@@ -405,9 +395,9 @@ class App
 					}));
 
 			objects[3].pos = {0,7,0};
-			loadModel(objects[3].mesh, "models/dragon.obj", true, true);
+			loadModel(objects[3].model, "models/dragon.obj", true, true);
 			objects[3].scale = {1.5,1.5,1.5};
-			objects[3].mat.setPipeline(pipelineManager->get({
+			objects[3].model.meshes[0].material.setPipeline(pipelineManager->get({
 						.vertMain="vertMain",
 						.fragMain="fragMain",
 						.vert="shaders/projected.spv",
@@ -415,7 +405,7 @@ class App
 					}));
 		}
 
-		void loadModel(MeshData &mesh, const char *path, bool swapYZ = false, bool flipTriangles = false)
+		void loadModel(Model &model, const char *path, bool swapYZ = false, bool flipTriangles = false)
 		{
 			LOG("Loading model: "<<path<<"...")
 			tinyobj::attrib_t attrib;
@@ -476,9 +466,9 @@ class App
 					std::swap(indices[i+1], indices[i+2]);
 			}
 
-			mesh.vertexCount = indices.size();
-			createMeshVertexBuffer(mesh, vertices);
-			createMeshIndexBuffer(mesh, indices);
+			model.meshes.push_back(Mesh{.vertexCount=(uint32_t)indices.size()});
+			createMeshVertexBuffer(model.meshes[0], vertices);
+			createMeshIndexBuffer(model.meshes[0], indices);
 		}
 
 		bool hasStencilComponent(vk::Format format) {
@@ -1016,19 +1006,20 @@ class App
 			};
 
 			cmdBuffers[frameIndex].beginRendering(renderInfo);
+			
+			// viewport + scissor are dynamic so we specify them now
+			cmdBuffers[frameIndex].setViewport(0, vk::Viewport(0,0,swapChainExtent.width, swapChainExtent.height, 0, 1));
+			cmdBuffers[frameIndex].setScissor(0, vk::Rect2D(vk::Offset2D(0,0), swapChainExtent));
 
 			for(auto &object : objects)
 			{
-				auto pipeline = object.mat.pipeline;
+				auto pipeline = object.model.meshes[0].material.pipeline;
 				cmdBuffers[frameIndex].bindPipeline(vk::PipelineBindPoint::eGraphics,*pipeline->pipeline);
 				
-				// viewport + scissor are dynamic so we specify them now
-				cmdBuffers[frameIndex].setViewport(0, vk::Viewport(0,0,swapChainExtent.width, swapChainExtent.height, 0, 1));
-				cmdBuffers[frameIndex].setScissor(0, vk::Rect2D(vk::Offset2D(0,0), swapChainExtent));
-				cmdBuffers[frameIndex].bindVertexBuffers(0, *(object.mesh.vertexBuffer), {0});
-				cmdBuffers[frameIndex].bindIndexBuffer(*(object.mesh.indexBuffer), 0, vk::IndexType::eUint32);
+				cmdBuffers[frameIndex].bindVertexBuffers(0, *(object.model.meshes[0].vertexBuffer), {0});
+				cmdBuffers[frameIndex].bindIndexBuffer(*(object.model.meshes[0].indexBuffer), 0, vk::IndexType::eUint32);
 				cmdBuffers[frameIndex].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->layout, 0, *object.descriptorSets[frameIndex], nullptr);
-				cmdBuffers[frameIndex].drawIndexed(object.mesh.vertexCount, 1, 0, 0, 0);
+				cmdBuffers[frameIndex].drawIndexed(object.model.meshes[0].vertexCount, 1, 0, 0, 0);
 			}
 
 			cmdBuffers[frameIndex].endRendering();

@@ -41,16 +41,6 @@ struct VulkanPipeline
 	VulkanPipeline(const vk::raii::Device &dev, const PipelineKey &key, const vk::SurfaceFormatKHR &surfaceFormat, vk::Format depthFormat, const vk::raii::DescriptorSetLayout &descSetLayout, vk::SampleCountFlagBits msaaSamples);
 };
 
-struct Material
-{
-	std::shared_ptr<VulkanPipeline> pipeline = nullptr;
-
-	void setPipeline(std::shared_ptr<VulkanPipeline> pipeline)
-	{
-		this->pipeline = pipeline;
-	}
-};
-
 class PipelineManager
 {
 	public:
