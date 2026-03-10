@@ -977,13 +977,16 @@ class App
 
 			for(auto &object : objects)
 			{
-				auto pipeline = object.model.meshes[0].material.pipeline;
-				cmdBuffers[frameIndex].bindPipeline(vk::PipelineBindPoint::eGraphics,*pipeline->pipeline);
-				
-				cmdBuffers[frameIndex].bindVertexBuffers(0, *(object.model.meshes[0].vertexBuffer), {0});
-				cmdBuffers[frameIndex].bindIndexBuffer(*(object.model.meshes[0].indexBuffer), 0, vk::IndexType::eUint32);
-				cmdBuffers[frameIndex].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->layout, 0, *object.descriptorSets[frameIndex], nullptr);
-				cmdBuffers[frameIndex].drawIndexed(object.model.meshes[0].vertexCount, 1, 0, 0, 0);
+				for(auto &mesh : object.model.meshes)
+				{
+					auto pipeline = mesh.material.pipeline;
+					cmdBuffers[frameIndex].bindPipeline(vk::PipelineBindPoint::eGraphics,*pipeline->pipeline);
+
+					cmdBuffers[frameIndex].bindVertexBuffers(0, *(mesh.vertexBuffer), {0});
+					cmdBuffers[frameIndex].bindIndexBuffer(*(mesh.indexBuffer), 0, vk::IndexType::eUint32);
+					cmdBuffers[frameIndex].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->layout, 0, *object.descriptorSets[frameIndex], nullptr);
+					cmdBuffers[frameIndex].drawIndexed(mesh.vertexCount, 1, 0, 0, 0);
+				}
 			}
 
 			cmdBuffers[frameIndex].endRendering();
