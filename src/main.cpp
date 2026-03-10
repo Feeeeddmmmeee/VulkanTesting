@@ -28,7 +28,10 @@
 #include <chrono>
 
 #define LOG(x) std::cout<<x<<std::endl;
+
+#ifdef SDL
 #include <SDL3/SDL.h>
+#endif
 
 #ifdef _DEBUG
 constexpr bool _ENABLE_VALIDATION_LAYERS = true;
@@ -1339,9 +1342,12 @@ class App
 
 		void mainLoop()
 		{
+#ifdef SDL
 			SDL_HideCursor();
+#endif
 			while(window->isRunning())
 			{
+#ifdef SDL
 				const bool *keys = SDL_GetKeyboardState(NULL);
 				// TEMPORARY workaround before moving to my engine which actually handles input events properly
 				float velocity = 0.0005f;
@@ -1378,6 +1384,7 @@ class App
 
 					window->forwarded.pop();
 				}
+#endif
 				window->pollEvents();
 				drawFrame();
 			}
