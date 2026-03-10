@@ -1342,44 +1342,37 @@ class App
 				const bool *keys = SDL_GetKeyboardState(NULL);
 				// TEMPORARY workaround before moving to my engine which actually handles input events properly
 				float velocity = 0.0005f;
-				if(keys[SDL_SCANCODE_LSHIFT])
-				{
+				auto front = camera->getFront(),
+					 right = camera->getRight(),
+					 up = camera->getUp();
+				if(keys[SDL_SCANCODE_LSHIFT]){
 					velocity = 0.001f;
 				}
 				if(keys[SDL_SCANCODE_W]){
-					camera->pos += velocity * camera->front;
+					camera->pos += velocity * front;
 				}
 				if(keys[SDL_SCANCODE_S]){
-					camera->pos -= velocity * camera->front;
+					camera->pos -= velocity * front;
 				}
 				if(keys[SDL_SCANCODE_D]){
-					camera->pos += velocity * camera->right;
+					camera->pos += velocity * right;
 				}
 				if(keys[SDL_SCANCODE_A]){
-					camera->pos -= velocity * camera->right;
+					camera->pos -= velocity * right;
 				}
 				if(keys[SDL_SCANCODE_SPACE]){
-					camera->pos += velocity * camera->up;
+					camera->pos += velocity * up;
 				}
 				if(keys[SDL_SCANCODE_LCTRL]){
-					camera->pos -= velocity * camera->up;
+					camera->pos -= velocity * up;
 				}
 				while(!window->forwarded.empty())
 				{
 					auto [dx, dy] = window->forwarded.front();
 					camera->yaw   -= dx * .1f;
 					camera->pitch -= dy * .1f;
-
 					camera->pitch = glm::clamp(camera->pitch, -89.0f, 89.0f);
 
-					glm::vec3 f;
-					f.x = cos(glm::radians(camera->yaw)) * cos(glm::radians(camera->pitch));
-					f.y = sin(glm::radians(camera->yaw)) * cos(glm::radians(camera->pitch));
-					f.z = sin(glm::radians(camera->pitch));
-
-					camera->front = glm::normalize(f);
-					camera->right = glm::normalize(glm::cross(camera->front, camera->worldUp));
-					camera->up    = glm::normalize(glm::cross(camera->right, camera->front));
 					window->forwarded.pop();
 				}
 				window->pollEvents();

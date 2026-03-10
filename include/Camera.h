@@ -17,15 +17,10 @@ struct Camera
 	float width, height;
 
 	float yaw, pitch;
-	glm::vec3 front, worldUp={0,0,1};
-	glm::vec3 right, up;
+	glm::vec3 worldUp={0,0,1};
 	
 	Camera(float w, float h, float fov=45.0f, glm::vec3 pos={0,0,0}, glm::vec3 front={1,0,0}, float near=.01f, float far=100.0f) : 
-		width(w), height(h), fov(fov), pos(pos), near(near), far(far), front(front) {
-			front = glm::normalize(front);
-			right = glm::normalize(glm::cross(front, worldUp));
-			up = glm::normalize(glm::cross(right, front));
-
+		width(w), height(h), fov(fov), pos(pos), near(near), far(far) {
 			pitch = glm::degrees(glm::asin(front.z));
 			yaw = glm::degrees(atan2(front.y, front.x));
 		}
@@ -40,8 +35,27 @@ struct Camera
 
 	glm::mat4 getViewMatrix()
 	{
-		glm::mat4 view = lookAt(pos, pos+front, up);
+		glm::mat4 view = lookAt(pos, pos+getFront(), getUp());
 
 		return view;
+	}
+	
+	glm::vec3 getFront()
+	{
+		glm::vec3 front;
+		front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+		front.y = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+		front.z = sin(glm::radians(pitch));
+		return glm::normalize(front);
+	}
+
+	glm::vec3 getRight()
+	{
+		return glm::normalize(glm::cross(getFront(), worldUp));
+	}
+
+	glm::vec3 getUp()
+	{
+		return glm::normalize(glm::cross(getRight(), getFront()));
 	}
 };
