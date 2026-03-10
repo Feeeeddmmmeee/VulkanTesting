@@ -979,15 +979,24 @@ class App
 
 			vk::ClearValue clearColor = vk::ClearColorValue(0.005f, 0.005f, 0.005f, 1.0f);
 			vk::RenderingAttachmentInfo attachmentInfo = {
-				.imageView = colorImageView,
 				.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
-				.resolveMode        = vk::ResolveModeFlagBits::eAverage,
-				.resolveImageView   = swapChainImageViews[imageIndex],
-				.resolveImageLayout = vk::ImageLayout::eColorAttachmentOptimal,
 				.loadOp = vk::AttachmentLoadOp::eClear, // op before rendering
 				.storeOp = vk::AttachmentStoreOp::eStore, // op after rendering
 				.clearValue = clearColor
 			};
+
+			if (msaaSamples == vk::SampleCountFlagBits::e1) {
+				attachmentInfo.imageView = swapChainImageViews[imageIndex];
+				attachmentInfo.resolveMode = vk::ResolveModeFlagBits::eNone;
+				attachmentInfo.resolveImageView = VK_NULL_HANDLE;
+			} 
+			else 
+			{
+				attachmentInfo.imageView = colorImageView;
+				attachmentInfo.resolveMode = vk::ResolveModeFlagBits::eAverage;
+				attachmentInfo.resolveImageView = swapChainImageViews[imageIndex];
+				attachmentInfo.resolveImageLayout = vk::ImageLayout::eColorAttachmentOptimal;
+			}
 
 			vk::ClearValue clearDepth = vk::ClearDepthStencilValue(1.0f, 0);
 			vk::RenderingAttachmentInfo depthInfo = {
