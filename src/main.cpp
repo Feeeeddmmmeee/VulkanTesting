@@ -40,6 +40,7 @@ constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
 constexpr uint32_t MAX_OBJECTS = 4;
 
 constexpr const char* TEXTURE_PATH = "textures/viking_room.png";
+constexpr bool ENABLE_MSAA = true;
 
 struct UniformBufferObject
 {
@@ -192,6 +193,11 @@ class App
 		std::unique_ptr<Camera> camera;
 		std::unique_ptr<PipelineManager> pipelineManager;
 
+		vk::raii::Image colorImage = nullptr;
+		vk::raii::DeviceMemory colorImageMemory = nullptr;
+		vk::raii::ImageView colorImageView = nullptr;
+		vk::SampleCountFlagBits msaaSamples = vk::SampleCountFlagBits::e1;
+
 		void initVulkan()
 		{
 			createInstance();
@@ -204,6 +210,7 @@ class App
 			createDescSetLayout();
 			setupPipelineManager();
 			createCommandPool();
+			createColorResources();
 			createDepthResources();
 			createTextureImage();
 			createTextureImageView();
@@ -215,6 +222,34 @@ class App
 			createDescSets();
 			createCommandBuffers();
 			createSyncObjects();
+		}
+
+		vk::SampleCountFlagBits getMaxUsableSampleCount()
+		{
+			if(!ENABLE_MSAA) return vk::SampleCountFlagBits::e1;
+
+			vk::PhysicalDeviceProperties props = pDevice.getProperties();
+			vk::SampleCountFlags counts = props.limits.framebufferColorSampleCounts & props.limits.framebufferDepthSampleCounts;
+
+			if (counts & vk::SampleCountFlagBits::e64) { return vk::SampleCountFlagBits::e64; }
+			if (counts & vk::SampleCountFlagBits::e32) { return vk::SampleCountFlagBits::e32; }
+			if (counts & vk::SampleCountFlagBits::e16) { return vk::SampleCountFlagBits::e16; }
+			if (counts & vk::SampleCountFlagBits::e8) { return vk::SampleCountFlagBits::e8; }
+			if (counts & vk::SampleCountFlagBits::e4) { return vk::SampleCountFlagBits::e4; }
+			if (counts & vk::SampleCountFlagBits::e2) { return vk::SampleCountFlagBits::e2; }
+
+			return vk::SampleCountFlagBits::e1;
+		}
+
+		void createColorResources()
+		{
+			vk::Format format = swapChainSurfaceFormat.format;
+
+			createImage(swapChainExtent.width, swapChainExtent.height, 1, msaaSamples, format, vk::ImageTiling::eOptimal,
+					vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment,  vk::MemoryPropertyFlagBits::eDeviceLocal,
+					colorImage, colorImageMemory
+					);
+			colorImageView = createImageView(colorImage, format, vk::ImageAspectFlagBits::eColor, 1);
 		}
 
 		void generateMipMaps(vk::raii::Image &image, vk::Format format, uint32_t w, uint32_t h, uint32_t mipLevels)
@@ -284,7 +319,8 @@ class App
 					device,
 					descSetLayout,
 					findDepthFormat(),
-					swapChainSurfaceFormat
+					swapChainSurfaceFormat,
+					msaaSamples
 			);
 		}
 
@@ -475,7 +511,7 @@ class App
 		void createDepthResources()
 		{
 			auto depthFormat = findDepthFormat();
-			createImage(swapChainExtent.width, swapChainExtent.height, 1,  depthFormat, 
+			createImage(swapChainExtent.width, swapChainExtent.height, 1, msaaSamples, depthFormat, 
 					vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eDepthStencilAttachment,
 					vk::MemoryPropertyFlagBits::eDeviceLocal, depthImage, depthImageMemory
 				);
@@ -587,10 +623,10 @@ class App
 			graphicsQueue.waitIdle();
 		}
 
-		void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties, vk::raii::Image& image, vk::raii::DeviceMemory& imageMemory) {
+		void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, vk::SampleCountFlagBits sampleCount, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties, vk::raii::Image& image, vk::raii::DeviceMemory& imageMemory) {
 			vk::ImageCreateInfo imageInfo{ .imageType = vk::ImageType::e2D, .format = format,
 				.extent = {width, height, 1}, .mipLevels = mipLevels, .arrayLayers = 1,
-				.samples = vk::SampleCountFlagBits::e1, .tiling = tiling,
+				.samples = sampleCount, .tiling = tiling,
 				.usage = usage, .sharingMode = vk::SharingMode::eExclusive
 			};
 
@@ -624,7 +660,7 @@ class App
 
 			stbi_image_free(pixels);
 
-			createImage(tWidth, tHeight, mipLevels, vk::Format::eR8G8B8A8Srgb, vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eTransferDst|
+			createImage(tWidth, tHeight, mipLevels, vk::SampleCountFlagBits::e1, vk::Format::eR8G8B8A8Srgb, vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eTransferDst|
 					vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eSampled, vk::MemoryPropertyFlagBits::eDeviceLocal, textureImage, textureMemory);
 
 			transitionLayout(textureImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, mipLevels);
@@ -784,6 +820,7 @@ class App
 			cleanupSwapchain();
 			createSwapChain();
 			createImageViews();
+			createColorResources();
 			createDepthResources();
 			updateCamera();
 		}
@@ -919,6 +956,16 @@ class App
 					vk::PipelineStageFlagBits2::eColorAttachmentOutput,          // dstStage
 					vk::ImageAspectFlagBits::eColor
 			);
+			transitionImageLayout(
+					*colorImage,
+					vk::ImageLayout::eUndefined,
+					vk::ImageLayout::eColorAttachmentOptimal,
+					{},                                                         // srcAccessMask (no need to wait for previous operations)
+					vk::AccessFlagBits2::eColorAttachmentWrite,                 // dstAccessMask
+					vk::PipelineStageFlagBits2::eColorAttachmentOutput,         // srcStage
+					vk::PipelineStageFlagBits2::eColorAttachmentOutput,          // dstStage
+					vk::ImageAspectFlagBits::eColor
+			);
 			// New transition for the depth image
 			transitionImageLayout(
 					*depthImage,
@@ -932,8 +979,11 @@ class App
 
 			vk::ClearValue clearColor = vk::ClearColorValue(0.005f, 0.005f, 0.005f, 1.0f);
 			vk::RenderingAttachmentInfo attachmentInfo = {
-				.imageView = swapChainImageViews[imageIndex],
+				.imageView = colorImageView,
 				.imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
+				.resolveMode        = vk::ResolveModeFlagBits::eAverage,
+				.resolveImageView   = swapChainImageViews[imageIndex],
+				.resolveImageLayout = vk::ImageLayout::eColorAttachmentOptimal,
 				.loadOp = vk::AttachmentLoadOp::eClear, // op before rendering
 				.storeOp = vk::AttachmentStoreOp::eStore, // op after rendering
 				.clearValue = clearColor
@@ -1224,6 +1274,7 @@ class App
 					isSuitable = isSuitable && found;
 					if (isSuitable) {
 						pDevice = device;
+						msaaSamples = getMaxUsableSampleCount();
 					}
 					return isSuitable;
 				});
