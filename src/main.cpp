@@ -321,7 +321,7 @@ class App
 
 		void setupObjects()
 		{
-			objects[0].pos= {0, -5, 0};
+			objects[0].pos= {0, 3.5, 0};
 			objects[0].scale = {.5,.5,.5};
 			loadModel(objects[0].model, "models/viking_room.obj");
 			objects[0].model.meshes[0].material.setPipeline(pipelineManager->get({
