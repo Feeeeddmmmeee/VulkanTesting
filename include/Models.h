@@ -11,6 +11,8 @@ struct Material
 	std::shared_ptr<VulkanPipeline> pipeline = nullptr;
 	std::shared_ptr<Texture> texture = nullptr;
 
+	std::vector<vk::raii::DescriptorSet> descriptorSets;
+
 	void setPipeline(std::shared_ptr<VulkanPipeline> pipeline)
 	{
 		this->pipeline = pipeline;
