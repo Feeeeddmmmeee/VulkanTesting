@@ -75,8 +75,6 @@ struct Object
 	std::vector<vk::raii::DeviceMemory> uBuffersMemory;
 	std::vector<void*> uBuffersMapped;
 
-	std::vector<vk::raii::DescriptorSet> descriptorSets;
-
 	glm::mat4 getModelMatrix() const 
 	{
         glm::mat4 model = glm::mat4(1.0f);
@@ -134,12 +132,6 @@ class App
 		std::vector<vk::raii::Fence> drawF;
 		uint32_t frameIndex = 0;
 
-		uint32_t mipLevels;
-		vk::raii::Image textureImage = nullptr;
-		vk::raii::ImageView textureImageView = nullptr;
-		vk::raii::DeviceMemory textureMemory = nullptr;
-		vk::raii::Sampler textureSampler = nullptr;
-
 		vk::raii::Image depthImage = nullptr;
 		vk::raii::DeviceMemory depthImageMemory = nullptr;
 		vk::raii::ImageView depthImageView = nullptr;
@@ -169,9 +161,6 @@ class App
 			createCommandPool();
 			createColorResources();
 			createDepthResources();
-			createTextureImage();
-			createTextureImageView();
-			createTextureSampler();
 			setupCamera();
 			setupObjects();
 			createUniformBuffers();
@@ -341,6 +330,10 @@ class App
 						.vert="shaders/texture.spv",
 						.frag="shaders/texture.spv"
 					}));
+			objects[0].model.meshes[0].material.texture = std::make_shared<Texture>(device, pDevice);
+			createTextureImage(objects[0].model.meshes[0].material.texture, TEXTURE_PATH);
+			objects[0].model.meshes[0].material.texture->createImageView();
+			objects[0].model.meshes[0].material.texture->createSampler();
 			
 			loadModel(objects[1].model, "models/sponza.obj", true, true);
 			objects[1].scale = {0.2,0.2,0.2};
@@ -350,6 +343,10 @@ class App
 						.vert="shaders/uv.spv",
 						.frag="shaders/uv.spv"
 					}));
+			objects[1].model.meshes[0].material.texture = std::make_shared<Texture>(device, pDevice);
+			createTextureImage(objects[1].model.meshes[0].material.texture, "textures/viking_room.png");
+			objects[1].model.meshes[0].material.texture->createImageView();
+			objects[1].model.meshes[0].material.texture->createSampler();
 
 			objects[2].pos = {0,5,0};
 			objects[2].scale = {.007,.007,.007};
@@ -357,9 +354,13 @@ class App
 			objects[2].model.meshes[0].material.setPipeline(pipelineManager->get({
 						.vertMain="vertMain",
 						.fragMain="fragMain",
-						.vert="shaders/uv.spv",
-						.frag="shaders/uv.spv"
+						.vert="shaders/texture.spv",
+						.frag="shaders/texture.spv"
 					}));
+			objects[2].model.meshes[0].material.texture = std::make_shared<Texture>(device, pDevice);
+			createTextureImage(objects[2].model.meshes[0].material.texture, "textures/default.png");
+			objects[2].model.meshes[0].material.texture->createImageView();
+			objects[2].model.meshes[0].material.texture->createSampler();
 
 			objects[3].pos = {0,7,0};
 			loadModel(objects[3].model, "models/dragon.obj", true, true);
@@ -370,6 +371,10 @@ class App
 						.vert="shaders/projected.spv",
 						.frag="shaders/projected.spv"
 					}));
+			objects[3].model.meshes[0].material.texture = std::make_shared<Texture>(device, pDevice);
+			createTextureImage(objects[3].model.meshes[0].material.texture, TEXTURE_PATH);
+			objects[3].model.meshes[0].material.texture->createImageView();
+			objects[3].model.meshes[0].material.texture->createSampler();
 		}
 
 		void loadModel(Model &model, const char *path, bool swapYZ = false, bool flipTriangles = false)
@@ -475,34 +480,6 @@ class App
 			depthImageView = createImageView(depthImage, depthFormat, vk::ImageAspectFlagBits::eDepth, 1);
 		}
 
-		void createTextureSampler()
-		{
-			vk::PhysicalDeviceProperties properties = pDevice.getProperties();
-			vk::SamplerCreateInfo        samplerInfo{
-				.magFilter        = vk::Filter::eLinear,
-					.minFilter        = vk::Filter::eLinear,
-					.mipmapMode       = vk::SamplerMipmapMode::eLinear,
-					.addressModeU     = vk::SamplerAddressMode::eRepeat,
-					.addressModeV     = vk::SamplerAddressMode::eRepeat,
-					.addressModeW     = vk::SamplerAddressMode::eRepeat,
-					.mipLodBias       = 0.0f,
-					.anisotropyEnable = vk::True,
-					.maxAnisotropy    = properties.limits.maxSamplerAnisotropy,
-					.compareEnable    = vk::False,
-					.compareOp        = vk::CompareOp::eAlways,
-					.minLod = 0,
-					.maxLod = vk::LodClampNone,
-					.unnormalizedCoordinates = vk::False
-			};
-
-			textureSampler = vk::raii::Sampler(device, samplerInfo);
-		}
-
-		void createTextureImageView()
-		{
-			textureImageView = createImageView(textureImage, vk::Format::eR8G8B8A8Srgb, vk::ImageAspectFlagBits::eColor, mipLevels);
-		}
-
 		vk::raii::ImageView createImageView(vk::raii::Image &image, vk::Format format, vk::ImageAspectFlags aspectFlags, uint32_t mipLevels)
 		{
 			vk::ImageViewCreateInfo viewInfo{ .image = image, .viewType = vk::ImageViewType::e2D,
@@ -596,11 +573,11 @@ class App
 			image.bindMemory(imageMemory, 0);
 		}
 
-		void createTextureImage()
+		void createTextureImage(std::shared_ptr<Texture> texture, const char* texturePath)
 		{
 			int tWidth, tHeight, tChannels;
-			stbi_uc *pixels = stbi_load(TEXTURE_PATH, &tWidth, &tHeight, &tChannels, STBI_rgb_alpha);
-			mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(tWidth, tHeight)))) + 1;
+			stbi_uc *pixels = stbi_load(texturePath, &tWidth, &tHeight, &tChannels, STBI_rgb_alpha);
+			texture->mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(tWidth, tHeight)))) + 1;
 			vk::DeviceSize imageSize = tWidth*tHeight * 4;
 
 			if(!pixels) throw std::runtime_error("Failed to load texture image!");
@@ -617,40 +594,43 @@ class App
 
 			stbi_image_free(pixels);
 
-			createImage(tWidth, tHeight, mipLevels, vk::SampleCountFlagBits::e1, vk::Format::eR8G8B8A8Srgb, vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eTransferDst|
-					vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eSampled, vk::MemoryPropertyFlagBits::eDeviceLocal, textureImage, textureMemory);
+			createImage(tWidth, tHeight, texture->mipLevels, vk::SampleCountFlagBits::e1, vk::Format::eR8G8B8A8Srgb, vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eTransferDst|
+					vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eSampled, vk::MemoryPropertyFlagBits::eDeviceLocal, texture->image, texture->memory);
 
-			transitionLayout(textureImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, mipLevels);
-			copyBufferToImage(stagingBuffer, textureImage, tWidth, tHeight);
-			generateMipMaps(textureImage, vk::Format::eR8G8B8A8Srgb, tWidth, tHeight, mipLevels);
+			transitionLayout(texture->image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, texture->mipLevels);
+			copyBufferToImage(stagingBuffer, texture->image, tWidth, tHeight);
+			generateMipMaps(texture->image, vk::Format::eR8G8B8A8Srgb, tWidth, tHeight, texture->mipLevels);
 		}
 
 		void createDescSets()
 		{
 			for(auto &object : objects)
 			{
-				std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, *descSetLayout);
-				vk::DescriptorSetAllocateInfo allocInfo{
-					.descriptorPool = descPool,
-						.descriptorSetCount = static_cast<uint32_t>(layouts.size()),
-						.pSetLayouts = layouts.data()
-				};
-
-				object.descriptorSets.clear();
-				object.descriptorSets = device.allocateDescriptorSets(allocInfo);
-
-				for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
+				for(auto &mesh : object.model.meshes)
 				{
-					vk::DescriptorBufferInfo bufferInfo{ .buffer = object.uniformBuffers[i], .offset = 0, .range = sizeof(UniformBufferObject) };
-					vk::DescriptorImageInfo imageInfo{.sampler=textureSampler, .imageView=textureImageView, .imageLayout=vk::ImageLayout::eShaderReadOnlyOptimal};
-
-					std::array descriptorWrites = {
-						vk::WriteDescriptorSet{ .dstSet = object.descriptorSets[i], .dstBinding = 0, .dstArrayElement = 0, .descriptorCount = 1,
-							.descriptorType = vk::DescriptorType::eUniformBuffer, .pBufferInfo = &bufferInfo },
-						vk::WriteDescriptorSet{ .dstSet = object.descriptorSets[i], .dstBinding = 1, .dstArrayElement = 0, .descriptorCount = 1,
-							.descriptorType = vk::DescriptorType::eCombinedImageSampler, .pImageInfo = &imageInfo }
+					std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, *descSetLayout);
+					vk::DescriptorSetAllocateInfo allocInfo{
+						.descriptorPool = descPool,
+							.descriptorSetCount = static_cast<uint32_t>(layouts.size()),
+							.pSetLayouts = layouts.data()
 					};
-					device.updateDescriptorSets(descriptorWrites, {});
+
+					mesh.material.descriptorSets.clear();
+					mesh.material.descriptorSets = device.allocateDescriptorSets(allocInfo);
+
+					for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
+					{
+						vk::DescriptorBufferInfo bufferInfo{ .buffer = object.uniformBuffers[i], .offset = 0, .range = sizeof(UniformBufferObject) };
+						vk::DescriptorImageInfo imageInfo{.sampler=mesh.material.texture->sampler, .imageView=mesh.material.texture->imageView, .imageLayout=vk::ImageLayout::eShaderReadOnlyOptimal};
+
+						std::array descriptorWrites = {
+							vk::WriteDescriptorSet{ .dstSet = mesh.material.descriptorSets[i], .dstBinding = 0, .dstArrayElement = 0, .descriptorCount = 1,
+								.descriptorType = vk::DescriptorType::eUniformBuffer, .pBufferInfo = &bufferInfo },
+							vk::WriteDescriptorSet{ .dstSet = mesh.material.descriptorSets[i], .dstBinding = 1, .dstArrayElement = 0, .descriptorCount = 1,
+								.descriptorType = vk::DescriptorType::eCombinedImageSampler, .pImageInfo = &imageInfo }
+						};
+						device.updateDescriptorSets(descriptorWrites, {});
+					}
 				}
 			}
 		}
@@ -987,7 +967,7 @@ class App
 
 					cmdBuffers[frameIndex].bindVertexBuffers(0, *(mesh.vertexBuffer), {0});
 					cmdBuffers[frameIndex].bindIndexBuffer(*(mesh.indexBuffer), 0, vk::IndexType::eUint32);
-					cmdBuffers[frameIndex].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->layout, 0, *object.descriptorSets[frameIndex], nullptr);
+					cmdBuffers[frameIndex].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->layout, 0, *mesh.material.descriptorSets[frameIndex], nullptr);
 					cmdBuffers[frameIndex].drawIndexed(mesh.vertexCount, 1, 0, 0, 0);
 				}
 			}
