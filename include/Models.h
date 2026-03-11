@@ -4,10 +4,12 @@
 #include <vulkan/vulkan_raii.hpp>
 
 #include "Pipeline.h"
+#include "Texture.h"
 
 struct Material
 {
 	std::shared_ptr<VulkanPipeline> pipeline = nullptr;
+	std::shared_ptr<Texture> texture = nullptr;
 
 	void setPipeline(std::shared_ptr<VulkanPipeline> pipeline)
 	{
