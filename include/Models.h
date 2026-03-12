@@ -5,6 +5,7 @@
 
 #include "Pipeline.h"
 #include "Texture.h"
+#include "Buffer.h"
 
 struct Material
 {
@@ -21,13 +22,11 @@ struct Material
 
 struct Mesh
 {
-		vk::raii::Buffer vertexBuffer = nullptr;
-		vk::raii::DeviceMemory vBufferMemory = nullptr;
-		vk::raii::Buffer indexBuffer = nullptr;
-		vk::raii::DeviceMemory iBufferMemory = nullptr;
+	std::shared_ptr<VulkanBuffer> vertexBuffer = nullptr;
+	std::shared_ptr<VulkanBuffer> indexBuffer = nullptr;
 
-		uint32_t vertexCount = 0;
-		Material material;
+	uint32_t vertexCount = 0;
+	Material material;
 };
 
 struct Model

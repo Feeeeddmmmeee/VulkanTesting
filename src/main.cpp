@@ -284,38 +284,39 @@ class App
 		{
 			vk::DeviceSize bufferSize = sizeof(indices[0]) * indices.size();
 
-			vk::raii::Buffer stagingBuffer({});
-			vk::raii::DeviceMemory stagingBufferMemory({});
-			createBuffer(bufferSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible |
-					vk::MemoryPropertyFlagBits::eHostCoherent, stagingBuffer, stagingBufferMemory);
+			auto stagingBuffer = std::make_shared<VulkanBuffer>(bufferSize,
+					vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible|
+					vk::MemoryPropertyFlagBits::eHostCoherent, device, pDevice
+					);
 
-			void* data = stagingBufferMemory.mapMemory(0, bufferSize);
-			memcpy(data, indices.data(), (size_t) bufferSize);
-			stagingBufferMemory.unmapMemory();
+			stagingBuffer->mapMemory();
+			stagingBuffer->uploadToMemory(indices.data());
+			stagingBuffer->unmapMemory();
+			
+			mesh.indexBuffer = std::make_shared<VulkanBuffer>(bufferSize, vk::BufferUsageFlagBits::eTransferDst |
+					vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal,
+					device, pDevice);
 
-			createBuffer(bufferSize, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
-					vk::MemoryPropertyFlagBits::eDeviceLocal, mesh.indexBuffer, mesh.iBufferMemory);
-
-			copyBuffer(stagingBuffer, mesh.indexBuffer, bufferSize);
+			copyBuffer(stagingBuffer, mesh.indexBuffer);
 		}
 
 		void createMeshVertexBuffer(Mesh &mesh, std::vector<Vertex> &vertices)
 		{
-			vk::DeviceSize bufSize = sizeof(vertices[0]) * vertices.size();
+			vk::DeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+			auto stagingBuffer = std::make_shared<VulkanBuffer>(bufferSize,
+					vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible|
+					vk::MemoryPropertyFlagBits::eHostCoherent, device, pDevice
+					);
 
-			vk::raii::Buffer       stagingBuffer({});
-			vk::raii::DeviceMemory stagingBufferMemory({});
-			createBuffer(bufSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible |
-					vk::MemoryPropertyFlagBits::eHostCoherent, stagingBuffer, stagingBufferMemory);
+			stagingBuffer->mapMemory();
+			stagingBuffer->uploadToMemory(vertices.data());
+			stagingBuffer->unmapMemory();
+			
+			mesh.vertexBuffer = std::make_shared<VulkanBuffer>(bufferSize, vk::BufferUsageFlagBits::eTransferDst |
+					vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal,
+					device, pDevice);
 
-			void *dataStaging = stagingBufferMemory.mapMemory(0, bufSize);
-			memcpy(dataStaging, vertices.data(), bufSize);
-			stagingBufferMemory.unmapMemory();
-
-			createBuffer(bufSize, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst,
-					vk::MemoryPropertyFlagBits::eDeviceLocal, mesh.vertexBuffer, mesh.vBufferMemory);
-
-			copyBuffer(stagingBuffer, mesh.vertexBuffer, bufSize);
+			copyBuffer(stagingBuffer, mesh.vertexBuffer);
 		}
 
 		void setupObjects()
@@ -700,21 +701,11 @@ class App
 			descSetLayout = vk::raii::DescriptorSetLayout(device, layoutInfo);
 		}
 
-		void copyBuffer(vk::raii::Buffer &srcBuf, vk::raii::Buffer &dstBuf, vk::DeviceSize size)
+		void copyBuffer(std::shared_ptr<VulkanBuffer> src, std::shared_ptr<VulkanBuffer> dst)
 		{
 			auto commandCopyBuffer = beginSingleTimeCommands();
-			commandCopyBuffer.copyBuffer(srcBuf, dstBuf, vk::BufferCopy(0, 0, size));
+			commandCopyBuffer.copyBuffer(src->buffer, dst->buffer, vk::BufferCopy(0, 0, src->size));
 			endSingleTimeCommands(commandCopyBuffer);
-		}
-
-		void createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties, vk::raii::Buffer &buffer, vk::raii::DeviceMemory &bufferMem)
-		{
-			vk::BufferCreateInfo bufferInfo{ .size = size, .usage = usage, .sharingMode = vk::SharingMode::eExclusive };
-			buffer = vk::raii::Buffer(device, bufferInfo);
-			vk::MemoryRequirements memRequirements = buffer.getMemoryRequirements();
-			vk::MemoryAllocateInfo allocInfo{ .allocationSize = memRequirements.size, .memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties) };
-			bufferMem= vk::raii::DeviceMemory(device, allocInfo);
-			buffer.bindMemory(*bufferMem, 0);
 		}
 
 		uint32_t findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags propFlags)
@@ -958,8 +949,8 @@ class App
 					auto pipeline = mesh.material.pipeline;
 					cmdBuffers[frameIndex].bindPipeline(vk::PipelineBindPoint::eGraphics,*pipeline->pipeline);
 
-					cmdBuffers[frameIndex].bindVertexBuffers(0, *(mesh.vertexBuffer), {0});
-					cmdBuffers[frameIndex].bindIndexBuffer(*(mesh.indexBuffer), 0, vk::IndexType::eUint32);
+					cmdBuffers[frameIndex].bindVertexBuffers(0, *(mesh.vertexBuffer->buffer), {0});
+					cmdBuffers[frameIndex].bindIndexBuffer(*(mesh.indexBuffer->buffer), 0, vk::IndexType::eUint32);
 					cmdBuffers[frameIndex].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->layout, 0, *mesh.material.descriptorSets[frameIndex], nullptr);
 					cmdBuffers[frameIndex].drawIndexed(mesh.vertexCount, 1, 0, 0, 0);
 				}
