@@ -8,7 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_compile_definitions(_DEBUG)
 
 # file(GLOB_RECURSE SRC_FILES src/*.cpp)
-set(SRC_FILES src/main.cpp src/Pipeline.cpp src/Texture.cpp)
+set(SRC_FILES src/main.cpp src/Pipeline.cpp src/Texture.cpp src/Buffer.cpp)
 add_executable(${PROJECT_NAME} ${SRC_FILES})
 
 find_package(slang CONFIG HINTS "$ENV{VULKAN_SDK}/lib/make")
