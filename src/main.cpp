@@ -486,7 +486,7 @@ class App
 			return std::move(vk::raii::ImageView( device, viewInfo ));
 		}
 
-		void copyBufferToImage(const vk::raii::Buffer &buf, vk::raii::Image &image, uint32_t w, uint32_t h)
+		void copyBufferToImage(VulkanBuffer &buf, vk::raii::Image &image, uint32_t w, uint32_t h)
 		{
 			auto cmdBuffer = beginSingleTimeCommands();
 
@@ -495,7 +495,7 @@ class App
 				.imageOffset={0,0,0},
 				.imageExtent={w,h,1}
 			};
-			cmdBuffer.copyBufferToImage(buf, image, vk::ImageLayout::eTransferDstOptimal, {region});
+			cmdBuffer.copyBufferToImage(buf.buffer, image, vk::ImageLayout::eTransferDstOptimal, {region});
 
 			endSingleTimeCommands(cmdBuffer);
 		}
@@ -581,15 +581,14 @@ class App
 
 			if(!pixels) throw std::runtime_error("Failed to load texture image!");
 
-			vk::raii::Buffer stagingBuffer({});
-			vk::raii::DeviceMemory memory({});
+			auto stagingBuffer = VulkanBuffer(imageSize,
+					vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible|
+					vk::MemoryPropertyFlagBits::eHostCoherent, device, pDevice
+					);
 
-			createBuffer(imageSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible |
-					vk::MemoryPropertyFlagBits::eHostCoherent, stagingBuffer, memory);
-
-			void* data = memory.mapMemory(0, imageSize);
-			memcpy(data, pixels, imageSize);
-			memory.unmapMemory();
+			stagingBuffer.mapMemory();
+			stagingBuffer.uploadToMemory(pixels);
+			stagingBuffer.unmapMemory();
 
 			stbi_image_free(pixels);
 
