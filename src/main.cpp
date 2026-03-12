@@ -7,6 +7,7 @@
 #include "Vertex.h"
 #include "Models.h"
 #include "Camera.h"
+#include "Buffer.h"
 
 #define GLM_ENABLE_EXPERIMENTAL
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
@@ -71,9 +72,7 @@ struct Object
 	Model model;
 
 	// one for each frame in flight
-	std::vector<vk::raii::Buffer> uniformBuffers;
-	std::vector<vk::raii::DeviceMemory> uBuffersMemory;
-	std::vector<void*> uBuffersMapped;
+	std::vector<std::shared_ptr<VulkanBuffer>> uniformBuffers;
 
 	glm::mat4 getModelMatrix() const 
 	{
@@ -620,7 +619,7 @@ class App
 
 					for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
 					{
-						vk::DescriptorBufferInfo bufferInfo{ .buffer = object.uniformBuffers[i], .offset = 0, .range = sizeof(UniformBufferObject) };
+						vk::DescriptorBufferInfo bufferInfo{ .buffer = object.uniformBuffers[i]->buffer, .offset = 0, .range = sizeof(UniformBufferObject) };
 						vk::DescriptorImageInfo imageInfo{.sampler=mesh.material.texture->sampler, .imageView=mesh.material.texture->imageView, .imageLayout=vk::ImageLayout::eShaderReadOnlyOptimal};
 
 						std::array descriptorWrites = {
@@ -667,7 +666,7 @@ class App
 					.view = camera->getViewMatrix(),
 						.proj = camera->getProjMatrix()
 				};
-				memcpy(object.uBuffersMapped[currentImage], &ubo, sizeof(ubo));
+				object.uniformBuffers[currentImage]->uploadToMemory(&ubo);
 			}
 		}
 
@@ -676,21 +675,16 @@ class App
 			for(auto &object : objects)
 			{
 				object.uniformBuffers.clear();
-				object.uBuffersMemory.clear();
-				object.uBuffersMapped.clear();
 
 				for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
 				{
 					vk::DeviceSize bufSize = sizeof(UniformBufferObject);
-					vk::raii::Buffer buffer({});
-					vk::raii::DeviceMemory memory({});
-
-					createBuffer(bufSize, vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible|
-							vk::MemoryPropertyFlagBits::eHostCoherent, buffer, memory);
-
-					object.uniformBuffers.emplace_back(std::move(buffer));
-					object.uBuffersMemory.emplace_back(std::move(memory));
-					object.uBuffersMapped.emplace_back(object.uBuffersMemory[i].mapMemory(0, bufSize));
+					auto buffer = std::make_shared<VulkanBuffer>(bufSize,
+								vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible|
+							vk::MemoryPropertyFlagBits::eHostCoherent, device, pDevice
+								);
+					buffer->mapMemory();
+					object.uniformBuffers.push_back(buffer);
 				}
 			}
 
