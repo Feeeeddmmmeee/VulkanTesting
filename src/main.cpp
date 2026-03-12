@@ -171,19 +171,21 @@ class App
 
 		vk::SampleCountFlagBits getMaxUsableSampleCount()
 		{
-			if(!ENABLE_MSAA) return vk::SampleCountFlagBits::e1;
+			if constexpr(!ENABLE_MSAA) return vk::SampleCountFlagBits::e1;
+			else
+			{
+				vk::PhysicalDeviceProperties props = pDevice.getProperties();
+				vk::SampleCountFlags counts = props.limits.framebufferColorSampleCounts & props.limits.framebufferDepthSampleCounts;
 
-			vk::PhysicalDeviceProperties props = pDevice.getProperties();
-			vk::SampleCountFlags counts = props.limits.framebufferColorSampleCounts & props.limits.framebufferDepthSampleCounts;
+				if (counts & vk::SampleCountFlagBits::e64) { return vk::SampleCountFlagBits::e64; }
+				if (counts & vk::SampleCountFlagBits::e32) { return vk::SampleCountFlagBits::e32; }
+				if (counts & vk::SampleCountFlagBits::e16) { return vk::SampleCountFlagBits::e16; }
+				if (counts & vk::SampleCountFlagBits::e8) { return vk::SampleCountFlagBits::e8; }
+				if (counts & vk::SampleCountFlagBits::e4) { return vk::SampleCountFlagBits::e4; }
+				if (counts & vk::SampleCountFlagBits::e2) { return vk::SampleCountFlagBits::e2; }
 
-			if (counts & vk::SampleCountFlagBits::e64) { return vk::SampleCountFlagBits::e64; }
-			if (counts & vk::SampleCountFlagBits::e32) { return vk::SampleCountFlagBits::e32; }
-			if (counts & vk::SampleCountFlagBits::e16) { return vk::SampleCountFlagBits::e16; }
-			if (counts & vk::SampleCountFlagBits::e8) { return vk::SampleCountFlagBits::e8; }
-			if (counts & vk::SampleCountFlagBits::e4) { return vk::SampleCountFlagBits::e4; }
-			if (counts & vk::SampleCountFlagBits::e2) { return vk::SampleCountFlagBits::e2; }
-
-			return vk::SampleCountFlagBits::e1;
+				return vk::SampleCountFlagBits::e1;
+			}
 		}
 
 		void createColorResources()
