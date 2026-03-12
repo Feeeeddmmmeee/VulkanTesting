@@ -21,4 +21,9 @@ echo "Done!"
 cmake "${CMAKE_FLAGS[@]}" || fatal "CMake error!"
 make -C build/ || fatal "Make error!"
 
-./build/VulkanTesting
+if command -v mangohud &>/dev/null
+then
+	mangohud ./build/VulkanTesting
+else
+	./build/VulkanTesting
+fi
