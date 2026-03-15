@@ -481,13 +481,6 @@ class App
 			depthImage.createImageView(depthFormat, vk::ImageAspectFlagBits::eDepth, device);
 		}
 
-		vk::raii::ImageView createImageView(vk::raii::Image &image, vk::Format format, vk::ImageAspectFlags aspectFlags, uint32_t mipLevels)
-		{
-			vk::ImageViewCreateInfo viewInfo{ .image = image, .viewType = vk::ImageViewType::e2D,
-				.format = format, .subresourceRange = { aspectFlags, 0, mipLevels, 0, 1 } };
-			return std::move(vk::raii::ImageView( device, viewInfo ));
-		}
-
 		void copyBufferToImage(VulkanBuffer &buf, vk::raii::Image &image, uint32_t w, uint32_t h)
 		{
 			auto cmdBuffer = beginSingleTimeCommands();
