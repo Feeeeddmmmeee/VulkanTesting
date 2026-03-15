@@ -29,7 +29,7 @@ void VulkanImage::createImageView(vk::Format format, vk::ImageAspectFlags aspect
 	vk::ImageViewCreateInfo viewInfo{ .image = image, .viewType = vk::ImageViewType::e2D,
 		.format = format, .subresourceRange = { aspect, 0, mipLevels, 0, 1 } };
 
-	imageView = vk::raii::ImageView( device, viewInfo );
+	view = vk::raii::ImageView( device, viewInfo );
 }
 
 void Texture::createImageView()
