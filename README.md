@@ -5,6 +5,10 @@ As the repo is only intended to be used as a reference it is purposefully not st
 
 <br>
 
+![sponza](images/sponza.png)
+
+<br>
+
 ![vulkan](https://github.com/user-attachments/assets/4148be7c-a53d-4dd8-9a2f-c29728808529)
 
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/d8a174d2-e5a0-4eaf-adaf-d62c11f065e3" />
