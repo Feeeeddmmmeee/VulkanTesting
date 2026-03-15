@@ -23,11 +23,20 @@ void Texture::createSampler()
 	sampler = vk::raii::Sampler(device, samplerInfo);
 }
 
-void Texture::createImageView()
+void VulkanImage::createImageView(vk::Format format, vk::ImageAspectFlags aspect, vk::raii::Device &device)
 {
 	// createImageView
 	vk::ImageViewCreateInfo viewInfo{ .image = image, .viewType = vk::ImageViewType::e2D,
-		.format = vk::Format::eR8G8B8A8Srgb, .subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, mipLevels, 0, 1 } };
+		.format = format, .subresourceRange = { aspect, 0, mipLevels, 0, 1 } };
 
 	imageView = vk::raii::ImageView( device, viewInfo );
+}
+
+void Texture::createImageView()
+{
+	// createImageView
+	vk::ImageViewCreateInfo viewInfo{ .image = image.image, .viewType = vk::ImageViewType::e2D,
+		.format = vk::Format::eR8G8B8A8Srgb, .subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, image.mipLevels, 0, 1 } };
+
+	image.createImageView(vk::Format::eR8G8B8A8Srgb, vk::ImageAspectFlagBits::eColor, device);
 }

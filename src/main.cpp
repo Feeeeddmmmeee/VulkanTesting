@@ -579,7 +579,7 @@ class App
 		{
 			int tWidth, tHeight, tChannels;
 			stbi_uc *pixels = stbi_load(texturePath, &tWidth, &tHeight, &tChannels, STBI_rgb_alpha);
-			texture->mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(tWidth, tHeight)))) + 1;
+			texture->image.mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(tWidth, tHeight)))) + 1;
 			vk::DeviceSize imageSize = tWidth*tHeight * 4;
 
 			if(!pixels) throw std::runtime_error("Failed to load texture image!");
@@ -595,12 +595,12 @@ class App
 
 			stbi_image_free(pixels);
 
-			createImage(tWidth, tHeight, texture->mipLevels, vk::SampleCountFlagBits::e1, vk::Format::eR8G8B8A8Srgb, vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eTransferDst|
-					vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eSampled, vk::MemoryPropertyFlagBits::eDeviceLocal, texture->image, texture->memory);
+			createImage(tWidth, tHeight, texture->image.mipLevels, vk::SampleCountFlagBits::e1, vk::Format::eR8G8B8A8Srgb, vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eTransferDst|
+					vk::ImageUsageFlagBits::eTransferSrc|vk::ImageUsageFlagBits::eSampled, vk::MemoryPropertyFlagBits::eDeviceLocal, texture->image.image, texture->image.memory);
 
-			transitionLayout(texture->image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, texture->mipLevels);
-			copyBufferToImage(stagingBuffer, texture->image, tWidth, tHeight);
-			generateMipMaps(texture->image, vk::Format::eR8G8B8A8Srgb, tWidth, tHeight, texture->mipLevels);
+			transitionLayout(texture->image.image, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, texture->image.mipLevels);
+			copyBufferToImage(stagingBuffer, texture->image.image, tWidth, tHeight);
+			generateMipMaps(texture->image.image, vk::Format::eR8G8B8A8Srgb, tWidth, tHeight, texture->image.mipLevels);
 		}
 
 		void createDescSets()
@@ -622,7 +622,7 @@ class App
 					for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
 					{
 						vk::DescriptorBufferInfo bufferInfo{ .buffer = object.uniformBuffers[i]->buffer, .offset = 0, .range = sizeof(UniformBufferObject) };
-						vk::DescriptorImageInfo imageInfo{.sampler=mesh.material.texture->sampler, .imageView=mesh.material.texture->imageView, .imageLayout=vk::ImageLayout::eShaderReadOnlyOptimal};
+						vk::DescriptorImageInfo imageInfo{.sampler=mesh.material.texture->sampler, .imageView=mesh.material.texture->image.imageView, .imageLayout=vk::ImageLayout::eShaderReadOnlyOptimal};
 
 						std::array descriptorWrites = {
 							vk::WriteDescriptorSet{ .dstSet = mesh.material.descriptorSets[i], .dstBinding = 0, .dstArrayElement = 0, .descriptorCount = 1,
