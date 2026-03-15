@@ -177,8 +177,8 @@ class App
 				if (counts & vk::SampleCountFlagBits::e64) { return vk::SampleCountFlagBits::e64; }
 				if (counts & vk::SampleCountFlagBits::e32) { return vk::SampleCountFlagBits::e32; }
 				if (counts & vk::SampleCountFlagBits::e16) { return vk::SampleCountFlagBits::e16; }
-				if (counts & vk::SampleCountFlagBits::e8) { return vk::SampleCountFlagBits::e8; }
-				if (counts & vk::SampleCountFlagBits::e4) { return vk::SampleCountFlagBits::e4; }
+				// if (counts & vk::SampleCountFlagBits::e8) { return vk::SampleCountFlagBits::e8; }
+				// if (counts & vk::SampleCountFlagBits::e4) { return vk::SampleCountFlagBits::e4; }
 				if (counts & vk::SampleCountFlagBits::e2) { return vk::SampleCountFlagBits::e2; }
 
 				return vk::SampleCountFlagBits::e1;
@@ -277,7 +277,7 @@ class App
 
 		void setupCamera()
 		{
-			camera = std::make_unique<Camera>(swapChainExtent.width, swapChainExtent.height, 45.0f, glm::vec3{-2.6f, 0.2f, 0.3f}, glm::vec3{0.9f, -0.1f, 0.2f});
+			camera = std::make_unique<Camera>(swapChainExtent.width, swapChainExtent.height, 45.0f, glm::vec3{-1.85, 0.08, 0.24}, glm::vec3{0.9f, -0.1f, 0.2f});
 		}
 
 		void createMeshIndexBuffer(Mesh &mesh, std::vector<uint32_t> &indices)
@@ -325,7 +325,7 @@ class App
 			objects[0].scale = {.5,.5,.5};
 			loadModel(objects[0].model, "models/viking_room.obj");
 			
-			loadModel(objects[1].model, "models/sponza.obj", true, true);
+			loadModel(objects[1].model, "models/sponza.obj", true, true, "textures/sponza/");
 			objects[1].scale = {0.2,0.2,0.2};
 
 			objects[2].pos = {0,5,0};
@@ -339,9 +339,10 @@ class App
 			LOG("Models loaded!")
 		}
 
-		void loadModel(Model &model, std::string path, bool swapYZ = false, bool flipTriangles = false)
+		void loadModel(Model &model, std::string path, bool swapYZ = false, bool flipTriangles = false, std::string textureDir = std::string(TEXTURE_DIR))
 		{
 			LOG("Loading model: "<<path<<"...")
+			LOG("\t Texture dir: "<<textureDir)
 
 			tinyobj::ObjReaderConfig readerConfig;
 			readerConfig.mtl_search_path = "./materials";
@@ -413,9 +414,9 @@ class App
 				if(materials.size())
 				{
 					auto mat = materials[shapes[i].mesh.material_ids[0]];
+					auto texturePath = textureDir;
 					if(mat.diffuse_texname.length())
 					{
-						std::string texturePath(TEXTURE_DIR);
 						texturePath += mat.diffuse_texname;
 
 						model.meshes[i].material.setPipeline(pipelineManager->get({
