@@ -24,6 +24,7 @@ SDLWindow::SDLWindow(const WindowSpec &spec)
 	
 	this->window = SDL_CreateWindow(spec.name.c_str(), spec.width, spec.height, flags);
 	SDL_SetWindowRelativeMouseMode(window, true);
+	SDL_HideCursor();
 	this->running = 1;
 }
 
@@ -52,6 +53,14 @@ void SDLWindow::pollEvents()
 			case SDL_EVENT_MOUSE_MOTION:
 				forwarded.push(std::make_pair(event.motion.xrel, event.motion.yrel));
 				break;
+			case SDL_EVENT_KEY_DOWN:
+				switch(event.key.key)
+				{
+					case SDLK_ESCAPE:
+						toggleMouse();
+						break;
+				}
+				break;
 		}
 	}
 }
@@ -66,4 +75,20 @@ std::pair<int,int> SDLWindow::getFrameBufferSize()
 bool SDLWindow::createSurface(VkInstance instance, VkSurfaceKHR *surface)
 {
 	return !SDL_Vulkan_CreateSurface(this->window, instance, nullptr, surface);
+}
+
+void SDLWindow::toggleMouse()
+{
+	if(mouseHidden)
+	{
+		SDL_SetWindowRelativeMouseMode(window, false);
+		SDL_ShowCursor();
+		mouseHidden = false;
+	}
+	else
+	{
+		SDL_SetWindowRelativeMouseMode(window, true);
+		SDL_HideCursor();
+		mouseHidden = true;
+	}
 }
