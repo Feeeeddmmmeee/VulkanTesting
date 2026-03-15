@@ -1,4 +1,3 @@
-#include <SDL3/SDL_mouse.h>
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_raii.hpp>
