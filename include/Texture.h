@@ -8,7 +8,7 @@
 struct VulkanImage
 {
 	vk::raii::Image image = nullptr;
-	vk::raii::ImageView imageView = nullptr;
+	vk::raii::ImageView view = nullptr;
 	vk::raii::DeviceMemory memory = nullptr;
 
 	uint32_t mipLevels;
