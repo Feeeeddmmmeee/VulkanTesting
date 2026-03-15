@@ -4,3 +4,4 @@ readme.md
 shaders/*.spv
 textures/
 models/
+materials/
