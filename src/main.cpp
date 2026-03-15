@@ -8,6 +8,7 @@
 #include "Models.h"
 #include "Camera.h"
 #include "Buffer.h"
+#include "Texture.h"
 
 #define GLM_ENABLE_EXPERIMENTAL
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
@@ -131,9 +132,7 @@ class App
 		std::vector<vk::raii::Fence> drawF;
 		uint32_t frameIndex = 0;
 
-		vk::raii::Image depthImage = nullptr;
-		vk::raii::DeviceMemory depthImageMemory = nullptr;
-		vk::raii::ImageView depthImageView = nullptr;
+		VulkanImage depthImage;
 
 		bool frameBufferResized = false;
 
@@ -477,9 +476,10 @@ class App
 			auto depthFormat = findDepthFormat();
 			createImage(swapChainExtent.width, swapChainExtent.height, 1, msaaSamples, depthFormat, 
 					vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eDepthStencilAttachment,
-					vk::MemoryPropertyFlagBits::eDeviceLocal, depthImage, depthImageMemory
+					vk::MemoryPropertyFlagBits::eDeviceLocal, depthImage.image, depthImage.memory
 				);
-			depthImageView = createImageView(depthImage, depthFormat, vk::ImageAspectFlagBits::eDepth, 1);
+			depthImage.mipLevels = 1;
+			depthImage.createImageView(depthFormat, vk::ImageAspectFlagBits::eDepth, device);
 		}
 
 		vk::raii::ImageView createImageView(vk::raii::Image &image, vk::Format format, vk::ImageAspectFlags aspectFlags, uint32_t mipLevels)
@@ -622,7 +622,7 @@ class App
 					for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
 					{
 						vk::DescriptorBufferInfo bufferInfo{ .buffer = object.uniformBuffers[i]->buffer, .offset = 0, .range = sizeof(UniformBufferObject) };
-						vk::DescriptorImageInfo imageInfo{.sampler=mesh.material.texture->sampler, .imageView=mesh.material.texture->image.imageView, .imageLayout=vk::ImageLayout::eShaderReadOnlyOptimal};
+						vk::DescriptorImageInfo imageInfo{.sampler=mesh.material.texture->sampler, .imageView=mesh.material.texture->image.view, .imageLayout=vk::ImageLayout::eShaderReadOnlyOptimal};
 
 						std::array descriptorWrites = {
 							vk::WriteDescriptorSet{ .dstSet = mesh.material.descriptorSets[i], .dstBinding = 0, .dstArrayElement = 0, .descriptorCount = 1,
@@ -891,7 +891,7 @@ class App
 			);
 			// New transition for the depth image
 			transitionImageLayout(
-					*depthImage,
+					*depthImage.image,
 					vk::ImageLayout::eUndefined,
 					vk::ImageLayout::eDepthAttachmentOptimal,
 					vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
@@ -923,7 +923,7 @@ class App
 
 			vk::ClearValue clearDepth = vk::ClearDepthStencilValue(1.0f, 0);
 			vk::RenderingAttachmentInfo depthInfo = {
-				.imageView = depthImageView,
+				.imageView = depthImage.view,
 				.imageLayout = vk::ImageLayout::eDepthAttachmentOptimal,
 				.loadOp = vk::AttachmentLoadOp::eClear,
 				.storeOp = vk::AttachmentStoreOp::eDontCare,
