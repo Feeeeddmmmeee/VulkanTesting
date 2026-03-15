@@ -140,9 +140,7 @@ class App
 		std::unique_ptr<Camera> camera;
 		std::unique_ptr<PipelineManager> pipelineManager;
 
-		vk::raii::Image colorImage = nullptr;
-		vk::raii::DeviceMemory colorImageMemory = nullptr;
-		vk::raii::ImageView colorImageView = nullptr;
+		VulkanImage colorImage;
 		vk::SampleCountFlagBits msaaSamples = vk::SampleCountFlagBits::e1;
 
 		void initVulkan()
@@ -193,9 +191,10 @@ class App
 
 			createImage(swapChainExtent.width, swapChainExtent.height, 1, msaaSamples, format, vk::ImageTiling::eOptimal,
 					vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment,  vk::MemoryPropertyFlagBits::eDeviceLocal,
-					colorImage, colorImageMemory
+					colorImage.image, colorImage.memory
 					);
-			colorImageView = createImageView(colorImage, format, vk::ImageAspectFlagBits::eColor, 1);
+			colorImage.mipLevels = 1;
+			colorImage.createImageView(format, vk::ImageAspectFlagBits::eColor, device);
 		}
 
 		void generateMipMaps(vk::raii::Image &image, vk::Format format, uint32_t w, uint32_t h, uint32_t mipLevels)
@@ -880,7 +879,7 @@ class App
 					vk::ImageAspectFlagBits::eColor
 			);
 			transitionImageLayout(
-					*colorImage,
+					*colorImage.image,
 					vk::ImageLayout::eUndefined,
 					vk::ImageLayout::eColorAttachmentOptimal,
 					{},                                                         // srcAccessMask (no need to wait for previous operations)
@@ -915,7 +914,7 @@ class App
 			} 
 			else 
 			{
-				attachmentInfo.imageView = colorImageView;
+				attachmentInfo.imageView = colorImage.view;
 				attachmentInfo.resolveMode = vk::ResolveModeFlagBits::eAverage;
 				attachmentInfo.resolveImageView = swapChainImageViews[imageIndex];
 				attachmentInfo.resolveImageLayout = vk::ImageLayout::eColorAttachmentOptimal;
