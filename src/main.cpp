@@ -177,8 +177,8 @@ class App
 				if (counts & vk::SampleCountFlagBits::e64) { return vk::SampleCountFlagBits::e64; }
 				if (counts & vk::SampleCountFlagBits::e32) { return vk::SampleCountFlagBits::e32; }
 				if (counts & vk::SampleCountFlagBits::e16) { return vk::SampleCountFlagBits::e16; }
-				// if (counts & vk::SampleCountFlagBits::e8) { return vk::SampleCountFlagBits::e8; }
-				// if (counts & vk::SampleCountFlagBits::e4) { return vk::SampleCountFlagBits::e4; }
+				if (counts & vk::SampleCountFlagBits::e8) { return vk::SampleCountFlagBits::e8; }
+				if (counts & vk::SampleCountFlagBits::e4) { return vk::SampleCountFlagBits::e4; }
 				if (counts & vk::SampleCountFlagBits::e2) { return vk::SampleCountFlagBits::e2; }
 
 				return vk::SampleCountFlagBits::e1;
