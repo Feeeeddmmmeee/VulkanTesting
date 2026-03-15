@@ -46,7 +46,7 @@ constexpr uint32_t HEIGHT = 600;
 constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
 constexpr uint32_t MAX_OBJECTS = 4;
 
-constexpr const char* TEXTURE_PATH = "textures/viking_room.png";
+constexpr std::string_view TEXTURE_DIR = "textures/";
 constexpr bool ENABLE_MSAA = true;
 
 struct UniformBufferObject
@@ -324,77 +324,46 @@ class App
 			objects[0].pos= {0, 3.5, 0};
 			objects[0].scale = {.5,.5,.5};
 			loadModel(objects[0].model, "models/viking_room.obj");
-			objects[0].model.meshes[0].material.setPipeline(pipelineManager->get({
-						.vertMain="vertMain",
-						.fragMain="fragMain",
-						.vert="shaders/texture.spv",
-						.frag="shaders/texture.spv"
-					}));
-			objects[0].model.meshes[0].material.texture = std::make_shared<Texture>(device, pDevice);
-			createTextureImage(objects[0].model.meshes[0].material.texture, TEXTURE_PATH);
-			objects[0].model.meshes[0].material.texture->createImageView();
-			objects[0].model.meshes[0].material.texture->createSampler();
 			
 			loadModel(objects[1].model, "models/sponza.obj", true, true);
 			objects[1].scale = {0.2,0.2,0.2};
-			objects[1].model.meshes[0].material.setPipeline(pipelineManager->get({
-						.vertMain="vertMain",
-						.fragMain="fragMain",
-						.vert="shaders/uv.spv",
-						.frag="shaders/uv.spv"
-					}));
-			objects[1].model.meshes[0].material.texture = std::make_shared<Texture>(device, pDevice);
-			createTextureImage(objects[1].model.meshes[0].material.texture, "textures/viking_room.png");
-			objects[1].model.meshes[0].material.texture->createImageView();
-			objects[1].model.meshes[0].material.texture->createSampler();
 
 			objects[2].pos = {0,5,0};
 			objects[2].scale = {.007,.007,.007};
 			loadModel(objects[2].model, "models/teapot.obj", true, true);
-			objects[2].model.meshes[0].material.setPipeline(pipelineManager->get({
-						.vertMain="vertMain",
-						.fragMain="fragMain",
-						.vert="shaders/texture.spv",
-						.frag="shaders/texture.spv"
-					}));
-			objects[2].model.meshes[0].material.texture = std::make_shared<Texture>(device, pDevice);
-			createTextureImage(objects[2].model.meshes[0].material.texture, "textures/default.png");
-			objects[2].model.meshes[0].material.texture->createImageView();
-			objects[2].model.meshes[0].material.texture->createSampler();
 
 			objects[3].pos = {0,7,0};
 			loadModel(objects[3].model, "models/dragon.obj", true, true);
 			objects[3].scale = {1.5,1.5,1.5};
-			objects[3].model.meshes[0].material.setPipeline(pipelineManager->get({
-						.vertMain="vertMain",
-						.fragMain="fragMain",
-						.vert="shaders/projected.spv",
-						.frag="shaders/projected.spv"
-					}));
-			objects[3].model.meshes[0].material.texture = std::make_shared<Texture>(device, pDevice);
-			createTextureImage(objects[3].model.meshes[0].material.texture, TEXTURE_PATH);
-			objects[3].model.meshes[0].material.texture->createImageView();
-			objects[3].model.meshes[0].material.texture->createSampler();
+
+			LOG("Models loaded!")
 		}
 
-		void loadModel(Model &model, const char *path, bool swapYZ = false, bool flipTriangles = false)
+		void loadModel(Model &model, std::string path, bool swapYZ = false, bool flipTriangles = false)
 		{
 			LOG("Loading model: "<<path<<"...")
-			tinyobj::attrib_t attrib;
-			std::vector<tinyobj::shape_t> shapes;
-			std::vector<tinyobj::material_t> materials;
-			std::string warn, err;
-			std::vector<Vertex> vertices;
-			std::vector<uint32_t> indices;
 
-			if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, path)) {
-				throw std::runtime_error(warn + err);
+			tinyobj::ObjReaderConfig readerConfig;
+			readerConfig.mtl_search_path = "./materials";
+			tinyobj::ObjReader reader;
+
+			if(!reader.ParseFromFile(path, readerConfig))
+			{
+				throw std::runtime_error("Failed to load obj!");
 			}
 
-			std::unordered_map<Vertex, uint32_t> uniqueVerts{};
+			auto &attrib = reader.GetAttrib();
+			auto &shapes = reader.GetShapes();
+			auto &materials = reader.GetMaterials();
 
-			for (const auto& shape : shapes) {
-				for (const auto& index : shape.mesh.indices) {
+			LOG("\tLoading "<<shapes.size()<<" meshes...")
+
+			for (int i = 0; i < shapes.size(); ++i) {
+				std::unordered_map<Vertex, uint32_t> uniqueVerts{};
+				std::vector<Vertex> vertices;
+				std::vector<uint32_t> indices;
+
+				for (const auto& index : shapes[i].mesh.indices) {
 					Vertex vertex{};
 
 					if(swapYZ)
@@ -430,17 +399,53 @@ class App
 					}
 					indices.push_back(uniqueVerts[vertex]);
 				}
+
+				if(flipTriangles)
+				{
+					for(int j = 0; j < indices.size(); j+=3)
+						std::swap(indices[j+1], indices[j+2]);
+				}
+
+				model.meshes.push_back(Mesh{.vertexCount=(uint32_t)indices.size()});
+				createMeshVertexBuffer(model.meshes[i], vertices);
+				createMeshIndexBuffer(model.meshes[i], indices);
+
+				if(materials.size())
+				{
+					auto mat = materials[shapes[i].mesh.material_ids[0]];
+					if(mat.diffuse_texname.length())
+					{
+						std::string texturePath(TEXTURE_DIR);
+						texturePath += mat.diffuse_texname;
+
+						model.meshes[i].material.setPipeline(pipelineManager->get({
+									.vertMain="vertMain",
+									.fragMain="fragMain",
+									.vert="shaders/texture.spv",
+									.frag="shaders/texture.spv"
+									}));
+						model.meshes[i].material.texture = std::make_shared<Texture>(device, pDevice);
+						createTextureImage(model.meshes[i].material.texture, texturePath.c_str());
+						model.meshes[i].material.texture->createImageView();
+						model.meshes[i].material.texture->createSampler();
+						continue;
+					}
+				}
+
+				// Fallback to a default shader + material
+				model.meshes[i].material.setPipeline(pipelineManager->get({
+							.vertMain="vertMain",
+							.fragMain="fragMain",
+							.vert="shaders/uv.spv",
+							.frag="shaders/uv.spv"
+							}));
+
+				model.meshes[i].material.texture = std::make_shared<Texture>(device, pDevice);
+				createTextureImage(model.meshes[i].material.texture, "textures/default.png");
+				model.meshes[i].material.texture->createImageView();
+				model.meshes[i].material.texture->createSampler();
 			}
 
-			if(flipTriangles)
-			{
-				for(int i = 0; i < indices.size(); i+=3)
-					std::swap(indices[i+1], indices[i+2]);
-			}
-
-			model.meshes.push_back(Mesh{.vertexCount=(uint32_t)indices.size()});
-			createMeshVertexBuffer(model.meshes[0], vertices);
-			createMeshIndexBuffer(model.meshes[0], indices);
 		}
 
 		bool hasStencilComponent(vk::Format format) {
@@ -597,6 +602,7 @@ class App
 
 		void createDescSets()
 		{
+			LOG("Creating descriptor sets...")
 			for(auto &object : objects)
 			{
 				for(auto &mesh : object.model.meshes)
@@ -614,7 +620,8 @@ class App
 					for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
 					{
 						vk::DescriptorBufferInfo bufferInfo{ .buffer = object.uniformBuffers[i]->buffer, .offset = 0, .range = sizeof(UniformBufferObject) };
-						vk::DescriptorImageInfo imageInfo{.sampler=mesh.material.texture->sampler, .imageView=mesh.material.texture->image.view, .imageLayout=vk::ImageLayout::eShaderReadOnlyOptimal};
+						vk::DescriptorImageInfo imageInfo{.sampler=mesh.material.texture->sampler,
+							.imageView=mesh.material.texture->image.view, .imageLayout=vk::ImageLayout::eShaderReadOnlyOptimal};
 
 						std::array descriptorWrites = {
 							vk::WriteDescriptorSet{ .dstSet = mesh.material.descriptorSets[i], .dstBinding = 0, .dstArrayElement = 0, .descriptorCount = 1,
@@ -626,18 +633,26 @@ class App
 					}
 				}
 			}
+			LOG("Descriptor sets created!")
+		}
+
+		uint32_t getMaxMeshCount()
+		{
+			uint32_t maxObjectMeshes = 64;
+			return MAX_OBJECTS * maxObjectMeshes;
 		}
 
 		void createDescPool()
 		{
+			uint32_t maxMeshCount = getMaxMeshCount();
 			std::array poolSize = {
-				vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, MAX_FRAMES_IN_FLIGHT*MAX_OBJECTS),
-				vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, MAX_FRAMES_IN_FLIGHT*MAX_OBJECTS)
+				vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, MAX_FRAMES_IN_FLIGHT*maxMeshCount),
+				vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, MAX_FRAMES_IN_FLIGHT*maxMeshCount)
 			};
 
 			vk::DescriptorPoolCreateInfo poolInfo{
 				.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
-					.maxSets=MAX_FRAMES_IN_FLIGHT*MAX_OBJECTS,
+					.maxSets=MAX_FRAMES_IN_FLIGHT*maxMeshCount,
 					.poolSizeCount=poolSize.size(),
 					.pPoolSizes=poolSize.data(),
 			};
@@ -1214,7 +1229,7 @@ class App
 		void createInstance()
 		{
 			constexpr vk::ApplicationInfo appInfo{
-				.pApplicationName = "Triangle",
+				.pApplicationName = "VulkanTesting",
 					.applicationVersion = VK_MAKE_VERSION(1,0,0),
 					.pEngineName = "No Engine",
 					.engineVersion = VK_MAKE_VERSION(1,0,0),
@@ -1248,7 +1263,7 @@ class App
 							[extension](auto const& extensionProperty)
 							{ return strcmp(extensionProperty.extensionName, extension) == 0; }))
 				{
-					throw std::runtime_error("Required GLFW extension not supported: " + std::string(extension));
+					throw std::runtime_error("Required extension not supported: " + std::string(extension));
 				}
 			}
 
