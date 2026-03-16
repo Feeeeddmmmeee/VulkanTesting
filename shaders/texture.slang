@@ -32,5 +32,7 @@ Sampler2D texture;
 [shader("fragment")]
 float4 fragMain(VSOutput inVert) : SV_Target
 {
-	return texture.Sample(inVert.texCoord);
+	float4 color = texture.Sample(inVert.texCoord);
+	if(color.a < 0.5) discard;
+	return color;
 }
