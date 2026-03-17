@@ -359,94 +359,118 @@ class App
 
 			LOG("\tLoading "<<shapes.size()<<" meshes...")
 
-			for (int i = 0; i < shapes.size(); ++i) {
-				std::unordered_map<Vertex, uint32_t> uniqueVerts{};
-				std::vector<Vertex> vertices;
-				std::vector<uint32_t> indices;
+			uint32_t meshIndex = 0;
+			for(auto &shape : shapes)
+			{
+				std::unordered_map<int, std::vector<int>> materialIndices;
+				uint32_t indexOffset = 0;
 
-				for (const auto& index : shapes[i].mesh.indices) {
-					Vertex vertex{};
-
-					if(swapYZ)
-					{
-						vertex.pos = {
-							attrib.vertices[3 * index.vertex_index + 0],
-							attrib.vertices[3 * index.vertex_index + 2],
-							attrib.vertices[3 * index.vertex_index + 1]
-						};
-					}
-					else
-					{
-						vertex.pos = {
-							attrib.vertices[3 * index.vertex_index + 0],
-							attrib.vertices[3 * index.vertex_index + 1],
-							attrib.vertices[3 * index.vertex_index + 2]
-						};
-					}
-
-					if(attrib.texcoords.size())
-					{
-						vertex.texCoord = {
-							attrib.texcoords[2 * index.texcoord_index + 0],
-							1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
-						};
-					}
-
-					vertex.color = {1.0f, 1.0f, 1.0f};
-					if(!uniqueVerts.contains(vertex))
-					{
-						uniqueVerts[vertex] = vertices.size();
-						vertices.push_back(vertex);
-					}
-					indices.push_back(uniqueVerts[vertex]);
-				}
-
-				if(flipTriangles)
+				for(uint32_t face = 0; face < shape.mesh.num_face_vertices.size(); ++face)
 				{
-					for(int j = 0; j < indices.size(); j+=3)
-						std::swap(indices[j+1], indices[j+2]);
-				}
+					int fv = shape.mesh.num_face_vertices[face];
+					int mat = shape.mesh.material_ids[face];
 
-				model.meshes.push_back(Mesh{.vertexCount=(uint32_t)indices.size()});
-				createMeshVertexBuffer(model.meshes[i], vertices);
-				createMeshIndexBuffer(model.meshes[i], indices);
-
-				if(materials.size())
-				{
-					auto mat = materials[shapes[i].mesh.material_ids[0]];
-					auto texturePath = textureDir;
-					if(mat.diffuse_texname.length())
+					for(uint32_t v = 0; v < fv; ++v)
 					{
-						texturePath += mat.diffuse_texname;
-
-						model.meshes[i].material.setPipeline(pipelineManager->get({
-									.vertMain="vertMain",
-									.fragMain="fragMain",
-									.vert="shaders/texture.spv",
-									.frag="shaders/texture.spv"
-									}));
-						model.meshes[i].material.texture = std::make_shared<Texture>(device, pDevice);
-						createTextureImage(model.meshes[i].material.texture, texturePath.c_str());
-						model.meshes[i].material.texture->createImageView();
-						model.meshes[i].material.texture->createSampler();
-						continue;
+						materialIndices[mat].push_back(indexOffset + v);
 					}
+
+					indexOffset += fv;
 				}
 
-				// Fallback to a default shader + material
-				model.meshes[i].material.setPipeline(pipelineManager->get({
-							.vertMain="vertMain",
-							.fragMain="fragMain",
-							.vert="shaders/uv.spv",
-							.frag="shaders/uv.spv"
-							}));
+				for(auto& [material, faceIndices] : materialIndices)
+				{
+					std::unordered_map<Vertex, uint32_t> uniqueVerts{};
+					std::vector<Vertex> vertices;
+					std::vector<uint32_t> indices;
 
-				model.meshes[i].material.texture = std::make_shared<Texture>(device, pDevice);
-				createTextureImage(model.meshes[i].material.texture, "textures/default.png");
-				model.meshes[i].material.texture->createImageView();
-				model.meshes[i].material.texture->createSampler();
+					for(uint32_t v : faceIndices)
+					{
+						const auto &index = shape.mesh.indices[v];
+						Vertex vertex{};
+
+						if(swapYZ)
+						{
+							vertex.pos = {
+								attrib.vertices[3 * index.vertex_index + 0],
+								attrib.vertices[3 * index.vertex_index + 2],
+								attrib.vertices[3 * index.vertex_index + 1]
+							};
+						}
+						else
+						{
+							vertex.pos = {
+								attrib.vertices[3 * index.vertex_index + 0],
+								attrib.vertices[3 * index.vertex_index + 1],
+								attrib.vertices[3 * index.vertex_index + 2]
+							};
+						}
+
+						if(attrib.texcoords.size())
+						{
+							vertex.texCoord = {
+								attrib.texcoords[2 * index.texcoord_index + 0],
+								1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+							};
+						}
+
+						vertex.color = {1.0f, 1.0f, 1.0f};
+						if(!uniqueVerts.contains(vertex))
+						{
+							uniqueVerts[vertex] = vertices.size();
+							vertices.push_back(vertex);
+						}
+						indices.push_back(uniqueVerts[vertex]);
+					}
+
+					if(flipTriangles)
+					{
+						for(int j = 0; j < indices.size(); j+=3)
+							std::swap(indices[j+1], indices[j+2]);
+					}
+
+					model.meshes.push_back(Mesh{.vertexCount=(uint32_t)indices.size()});
+					createMeshVertexBuffer(model.meshes[meshIndex], vertices);
+					createMeshIndexBuffer(model.meshes[meshIndex], indices);
+
+					if(materials.size())
+					{
+						auto mat = materials[material];
+						auto texturePath = textureDir;
+						if(mat.diffuse_texname.length())
+						{
+							texturePath += mat.diffuse_texname;
+
+							model.meshes[meshIndex].material.setPipeline(pipelineManager->get({
+										.vertMain="vertMain",
+										.fragMain="fragMain",
+										.vert="shaders/texture.spv",
+										.frag="shaders/texture.spv"
+										}));
+							model.meshes[meshIndex].material.texture = std::make_shared<Texture>(device, pDevice);
+							createTextureImage(model.meshes[meshIndex].material.texture, texturePath.c_str());
+							model.meshes[meshIndex].material.texture->createImageView();
+							model.meshes[meshIndex].material.texture->createSampler();
+							++meshIndex;
+							continue;
+						}
+					}
+
+					// Fallback to a default shader + material
+					model.meshes[meshIndex].material.setPipeline(pipelineManager->get({
+								.vertMain="vertMain",
+								.fragMain="fragMain",
+								.vert="shaders/uv.spv",
+								.frag="shaders/uv.spv"
+								}));
+
+					model.meshes[meshIndex].material.texture = std::make_shared<Texture>(device, pDevice);
+					createTextureImage(model.meshes[meshIndex].material.texture, "textures/default.png");
+					model.meshes[meshIndex].material.texture->createImageView();
+					model.meshes[meshIndex].material.texture->createSampler();
+					++meshIndex;
+				}
 			}
-
 		}
 
 		bool hasStencilComponent(vk::Format format) {
@@ -459,7 +483,7 @@ class App
 					{vk::Format::eD32Sfloat, vk::Format::eD32SfloatS8Uint, vk::Format::eD24UnormS8Uint},
 					vk::ImageTiling::eOptimal,
 					vk::FormatFeatureFlagBits::eDepthStencilAttachment
-				);
+					);
 		}
 
 		vk::Format findSupportedFormat(const std::vector<vk::Format> &candidates, vk::ImageTiling tiling, vk::FormatFeatureFlags features)
