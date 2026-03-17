@@ -339,6 +339,44 @@ class App
 			LOG("Models loaded!")
 		}
 
+		void createMesh(Mesh &mesh, std::vector<Vertex> &vertices, std::vector<uint32_t> &indices, const std::string &textureDir,
+				const std::vector<tinyobj::material_t> materials, uint32_t mat)
+		{
+			createMeshVertexBuffer(mesh, vertices);
+			createMeshIndexBuffer(mesh, indices);
+
+			if(materials.size())
+			{
+				auto texturePath = textureDir;
+				texturePath += materials[mat].diffuse_texname;
+
+				mesh.material.setPipeline(pipelineManager->get({
+							.vertMain="vertMain",
+							.fragMain="fragMain",
+							.vert="shaders/texture.spv",
+							.frag="shaders/texture.spv"
+							}));
+				mesh.material.texture = std::make_shared<Texture>(device, pDevice);
+				createTextureImage(mesh.material.texture, texturePath.c_str());
+				mesh.material.texture->createImageView();
+				mesh.material.texture->createSampler();
+				return;
+			}
+
+			// Fallback to a default shader + material
+			mesh.material.setPipeline(pipelineManager->get({
+						.vertMain="vertMain",
+						.fragMain="fragMain",
+						.vert="shaders/uv.spv",
+						.frag="shaders/uv.spv"
+						}));
+
+			mesh.material.texture = std::make_shared<Texture>(device, pDevice);
+			createTextureImage(mesh.material.texture, "textures/default.png");
+			mesh.material.texture->createImageView();
+			mesh.material.texture->createSampler();
+		}
+
 		void loadModel(Model &model, std::string path, bool swapYZ = false, bool flipTriangles = false, std::string textureDir = std::string(TEXTURE_DIR))
 		{
 			LOG("Loading model: "<<path<<"...")
@@ -430,44 +468,7 @@ class App
 					}
 
 					model.meshes.push_back(Mesh{.vertexCount=(uint32_t)indices.size()});
-					createMeshVertexBuffer(model.meshes[meshIndex], vertices);
-					createMeshIndexBuffer(model.meshes[meshIndex], indices);
-
-					if(materials.size())
-					{
-						auto mat = materials[material];
-						auto texturePath = textureDir;
-						if(mat.diffuse_texname.length())
-						{
-							texturePath += mat.diffuse_texname;
-
-							model.meshes[meshIndex].material.setPipeline(pipelineManager->get({
-										.vertMain="vertMain",
-										.fragMain="fragMain",
-										.vert="shaders/texture.spv",
-										.frag="shaders/texture.spv"
-										}));
-							model.meshes[meshIndex].material.texture = std::make_shared<Texture>(device, pDevice);
-							createTextureImage(model.meshes[meshIndex].material.texture, texturePath.c_str());
-							model.meshes[meshIndex].material.texture->createImageView();
-							model.meshes[meshIndex].material.texture->createSampler();
-							++meshIndex;
-							continue;
-						}
-					}
-
-					// Fallback to a default shader + material
-					model.meshes[meshIndex].material.setPipeline(pipelineManager->get({
-								.vertMain="vertMain",
-								.fragMain="fragMain",
-								.vert="shaders/uv.spv",
-								.frag="shaders/uv.spv"
-								}));
-
-					model.meshes[meshIndex].material.texture = std::make_shared<Texture>(device, pDevice);
-					createTextureImage(model.meshes[meshIndex].material.texture, "textures/default.png");
-					model.meshes[meshIndex].material.texture->createImageView();
-					model.meshes[meshIndex].material.texture->createSampler();
+					createMesh(model.meshes[meshIndex], vertices, indices, textureDir, materials, material);
 					++meshIndex;
 				}
 			}
