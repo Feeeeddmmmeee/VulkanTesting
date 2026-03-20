@@ -56,7 +56,7 @@ struct UniformBufferObject
 	glm::mat4 proj;
 };
 
-const std::vector<char const*> validationLayers = {
+const std::vector<const char*> validationLayers = {
     "VK_LAYER_KHRONOS_validation"
 };
 
