@@ -46,7 +46,7 @@ constexpr uint32_t HEIGHT = 600;
 constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
 constexpr uint32_t MAX_OBJECTS = 4;
 
-constexpr std::string_view TEXTURE_DIR = "textures/";
+constexpr std::string TEXTURE_DIR = "textures/";
 constexpr bool ENABLE_MSAA = true;
 
 struct UniformBufferObject
