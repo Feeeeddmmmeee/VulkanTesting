@@ -115,10 +115,10 @@ class App
 		vk::raii::Queue presentQueue = nullptr;
 
 		vk::raii::SwapchainKHR swapchain = nullptr;
-		std::vector<vk::Image> swapChainImages;
-		vk::SurfaceFormatKHR swapChainSurfaceFormat;
-		vk::Extent2D swapChainExtent;
-		std::vector<vk::raii::ImageView> swapChainImageViews;
+		std::vector<vk::Image> swapchainImages;
+		vk::SurfaceFormatKHR swapchainSurfaceFormat;
+		vk::Extent2D swapchainExtent;
+		std::vector<vk::raii::ImageView> swapchainImageViews;
 
 		vk::raii::DescriptorSetLayout descSetLayout = nullptr;
 
@@ -150,8 +150,8 @@ class App
 			createSurface();
 			pickPhysicalDevice();
 			createLogicalDevice();
-			createSwapChain();
-			createImageViews();
+			createSwapchain();
+			createSwapchainImageViews();
 			createDescSetLayout();
 			setupPipelineManager();
 			createCommandPool();
@@ -187,9 +187,9 @@ class App
 
 		void createColorResources()
 		{
-			vk::Format format = swapChainSurfaceFormat.format;
+			vk::Format format = swapchainSurfaceFormat.format;
 
-			createImage(swapChainExtent.width, swapChainExtent.height, 1, msaaSamples, format, vk::ImageTiling::eOptimal,
+			createImage(swapchainExtent.width, swapchainExtent.height, 1, msaaSamples, format, vk::ImageTiling::eOptimal,
 					vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment,  vk::MemoryPropertyFlagBits::eDeviceLocal,
 					colorImage.image, colorImage.memory
 					);
@@ -264,20 +264,20 @@ class App
 					device,
 					descSetLayout,
 					findDepthFormat(),
-					swapChainSurfaceFormat,
+					swapchainSurfaceFormat,
 					msaaSamples
 			);
 		}
 
 		void updateCamera()
 		{
-			camera->height = swapChainExtent.height;
-			camera->width = swapChainExtent.width;
+			camera->height = swapchainExtent.height;
+			camera->width = swapchainExtent.width;
 		}
 
 		void setupCamera()
 		{
-			camera = std::make_unique<Camera>(swapChainExtent.width, swapChainExtent.height, 45.0f, glm::vec3{-1.85, 0.08, 0.24}, glm::vec3{0.9f, -0.1f, 0.2f});
+			camera = std::make_unique<Camera>(swapchainExtent.width, swapchainExtent.height, 45.0f, glm::vec3{-1.85, 0.08, 0.24}, glm::vec3{0.9f, -0.1f, 0.2f});
 		}
 
 		void createMeshIndexBuffer(Mesh &mesh, std::vector<uint32_t> &indices)
@@ -504,7 +504,7 @@ class App
 		void createDepthResources()
 		{
 			auto depthFormat = findDepthFormat();
-			createImage(swapChainExtent.width, swapChainExtent.height, 1, msaaSamples, depthFormat, 
+			createImage(swapchainExtent.width, swapchainExtent.height, 1, msaaSamples, depthFormat, 
 					vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eDepthStencilAttachment,
 					vk::MemoryPropertyFlagBits::eDeviceLocal, depthImage.image, depthImage.memory
 				);
@@ -757,7 +757,7 @@ class App
 
 		void cleanupSwapchain()
 		{
-			swapChainImageViews.clear();
+			swapchainImageViews.clear();
 			swapchain = nullptr;
 		}
 
@@ -774,8 +774,8 @@ class App
 			device.waitIdle();
 
 			cleanupSwapchain();
-			createSwapChain();
-			createImageViews();
+			createSwapchain();
+			createSwapchainImageViews();
 			createColorResources();
 			createDepthResources();
 			updateCamera();
@@ -850,7 +850,7 @@ class App
 		{
 			assert(presentCompleteS.empty() && renderFinishedS.empty() && drawF.empty());
 
-			for(int i = 0; i < swapChainImages.size(); ++i)
+			for(int i = 0; i < swapchainImages.size(); ++i)
 			{
 				renderFinishedS.emplace_back(device, vk::SemaphoreCreateInfo());
 			}
@@ -903,7 +903,7 @@ class App
 			cmdBuffers[frameIndex].begin({});
 			// Before starting rendering, transition the swapchain image to COLOR_ATTACHMENT_OPTIMAL
 			transitionImageLayout(
-					swapChainImages[imageIndex],
+					swapchainImages[imageIndex],
 					vk::ImageLayout::eUndefined,
 					vk::ImageLayout::eColorAttachmentOptimal,
 					{},                                                         // srcAccessMask (no need to wait for previous operations)
@@ -942,7 +942,7 @@ class App
 			};
 
 			if (msaaSamples == vk::SampleCountFlagBits::e1) {
-				attachmentInfo.imageView = swapChainImageViews[imageIndex];
+				attachmentInfo.imageView = swapchainImageViews[imageIndex];
 				attachmentInfo.resolveMode = vk::ResolveModeFlagBits::eNone;
 				attachmentInfo.resolveImageView = VK_NULL_HANDLE;
 			} 
@@ -950,7 +950,7 @@ class App
 			{
 				attachmentInfo.imageView = colorImage.view;
 				attachmentInfo.resolveMode = vk::ResolveModeFlagBits::eAverage;
-				attachmentInfo.resolveImageView = swapChainImageViews[imageIndex];
+				attachmentInfo.resolveImageView = swapchainImageViews[imageIndex];
 				attachmentInfo.resolveImageLayout = vk::ImageLayout::eColorAttachmentOptimal;
 			}
 
@@ -964,7 +964,7 @@ class App
 			};
 
 			vk::RenderingInfo renderInfo = {
-				.renderArea={.offset={0,0}, .extent=swapChainExtent},
+				.renderArea={.offset={0,0}, .extent=swapchainExtent},
 				.layerCount=1,
 				.colorAttachmentCount=1,
 				.pColorAttachments=&attachmentInfo,
@@ -974,8 +974,8 @@ class App
 			cmdBuffers[frameIndex].beginRendering(renderInfo);
 			
 			// viewport + scissor are dynamic so we specify them now
-			cmdBuffers[frameIndex].setViewport(0, vk::Viewport(0,0,swapChainExtent.width, swapChainExtent.height, 0, 1));
-			cmdBuffers[frameIndex].setScissor(0, vk::Rect2D(vk::Offset2D(0,0), swapChainExtent));
+			cmdBuffers[frameIndex].setViewport(0, vk::Viewport(0,0,swapchainExtent.width, swapchainExtent.height, 0, 1));
+			cmdBuffers[frameIndex].setScissor(0, vk::Rect2D(vk::Offset2D(0,0), swapchainExtent));
 
 			for(auto &object : objects)
 			{
@@ -995,7 +995,7 @@ class App
 			
 			// After rendering, transition the swapchain image to PRESENT_SRC
 			transitionImageLayout(
-					swapChainImages[imageIndex],
+					swapchainImages[imageIndex],
 					vk::ImageLayout::eColorAttachmentOptimal,
 					vk::ImageLayout::ePresentSrcKHR,
 					vk::AccessFlagBits2::eColorAttachmentWrite,             // srcAccessMask
@@ -1024,28 +1024,28 @@ class App
 			commandPool = vk::raii::CommandPool(device, poolInfo);
 		}
 
-		void createImageViews()
+		void createSwapchainImageViews()
 		{
-			swapChainImageViews.clear();
+			swapchainImageViews.clear();
 
 			vk::ImageViewCreateInfo imViewInfo{
 				.viewType = vk::ImageViewType::e2D,
-					.format = swapChainSurfaceFormat.format,
+					.format = swapchainSurfaceFormat.format,
 					.subresourceRange = {vk::ImageAspectFlagBits::eColor, 0,1,0,1}
 			};
 
-			for(auto image : swapChainImages)
+			for(auto image : swapchainImages)
 			{
 				imViewInfo.image = image;
-				swapChainImageViews.emplace_back(device, imViewInfo);
+				swapchainImageViews.emplace_back(device, imViewInfo);
 			}
 		}
 
-		void createSwapChain()
+		void createSwapchain()
 		{
 			auto surfCapabilities = pDevice.getSurfaceCapabilitiesKHR(*surface);
-			swapChainSurfaceFormat = chooseSwapSurfaceFormat(pDevice.getSurfaceFormatsKHR(*surface));
-			swapChainExtent = chooseSwapExtent(surfCapabilities);
+			swapchainSurfaceFormat = chooseSwapSurfaceFormat(pDevice.getSurfaceFormatsKHR(*surface));
+			swapchainExtent = chooseSwapExtent(surfCapabilities);
 			auto minImageCount = std::max(3u, surfCapabilities.minImageCount);
 			minImageCount = ( surfCapabilities.maxImageCount > 0 && minImageCount > surfCapabilities.maxImageCount ) ? surfCapabilities.maxImageCount : minImageCount;
 
@@ -1055,13 +1055,13 @@ class App
 				imageCount = surfCapabilities.maxImageCount;
 			}
 
-			vk::SwapchainCreateInfoKHR swapChainCreateInfo{
+			vk::SwapchainCreateInfoKHR swapchainCreateInfo{
 				.flags = vk::SwapchainCreateFlagsKHR(),
 					.surface = *surface,
 					.minImageCount = minImageCount,
-					.imageFormat = swapChainSurfaceFormat.format,
-					.imageColorSpace = swapChainSurfaceFormat.colorSpace,
-					.imageExtent = swapChainExtent,
+					.imageFormat = swapchainSurfaceFormat.format,
+					.imageColorSpace = swapchainSurfaceFormat.colorSpace,
+					.imageExtent = swapchainExtent,
 					.imageArrayLayers =1,
 					.imageUsage = vk::ImageUsageFlagBits::eColorAttachment,
 					.imageSharingMode = vk::SharingMode::eExclusive,
@@ -1072,8 +1072,8 @@ class App
 					.oldSwapchain = nullptr
 			};
 
-			swapchain = vk::raii::SwapchainKHR(device,swapChainCreateInfo);
-			swapChainImages = swapchain.getImages();
+			swapchain = vk::raii::SwapchainKHR(device,swapchainCreateInfo);
+			swapchainImages = swapchain.getImages();
 		}
 
 		vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR &cap)
